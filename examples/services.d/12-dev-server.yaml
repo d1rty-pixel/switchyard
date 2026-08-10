@@ -1,0 +1,100 @@
+# A development server that normally runs in the foreground, plus every remaining
+# option the configuration accepts. Adjust the paths before using it.
+#
+# Two techniques worth noting:
+#
+#  1. A foreground process cannot be started directly — the command would block
+#     until Switchyard's timeout kills it. Handing it to `systemd-run --user`
+#     makes it a transient user unit: the start command returns immediately, the
+#     process is supervised, and its output lands in the journal.
+#  2. `interpret: stdout` maps a status command's output onto states, which suits
+#     tools that print a word rather than setting an exit code.
+
+id: dev-server
+name: API dev server
+description: Local API served by a foreground process under the user manager
+icon: rocket
+type: command
+group: development
+tags: [api, dev, example]
+
+# ── base options ─────────────────────────────────────────────────────────────
+enabled: true # false = ignored entirely: not polled, not listed, no API access
+hidden: false # true = still managed and polled, just not shown on the dashboard
+order: 10 # sort weight inside the group; lower comes first
+timeoutMs: 45000 # per-service command timeout (overrides settings.commandTimeoutMs)
+confirm: [restart] # extra confirmation prompts on top of the provider defaults
+
+workdir: /srv/example-api # cwd for every command of this service
+env:
+  NODE_ENV: development
+  PORT: '4000'
+
+urls:
+  - label: API root
+    url: http://127.0.0.1:4000/
+    primary: true
+  # A bare string works too; the label is derived from the URL.
+  - http://127.0.0.1:4000/openapi.json
+ports:
+  - port: 4000
+    label: http
+  # A bare number works too and defaults to tcp.
+  - 9229
+
+provider:
+  status:
+    run: [systemctl, --user, is-active, example-api.service]
+    interpret: stdout
+    map:
+      active: running
+      activating: starting
+      deactivating: stopping
+      inactive: stopped
+      failed: failed
+    fallbackState: unknown
+    timeoutMs: 5000
+  logs:
+    run: [journalctl, --user, -u, example-api.service, --no-pager, --output=short-iso]
+    tailArg: -n
+    source: journal (example-api.service)
+    timeoutMs: 15000
+  actions:
+    - id: start
+      label: Start
+      kind: primary
+      icon: play
+      description: transient user unit running the dev server in the foreground
+      run:
+        - systemd-run
+        - --user
+        - --unit=example-api
+        - --description=Example API (managed by Switchyard)
+        - --collect
+        - --working-directory=/srv/example-api
+        - npm
+        - run
+        - dev
+      successMessage: dev server started on 127.0.0.1:4000
+      enabledIn: [stopped, failed, unknown]
+      timeoutMs: 20000
+    - id: stop
+      label: Stop
+      kind: danger
+      confirm: true
+      run: [systemctl, --user, stop, example-api.service]
+      enabledIn: [running, degraded, starting]
+    - id: restart
+      label: Restart
+      kind: secondary
+      run: [systemctl, --user, restart, example-api.service]
+    - id: migrate
+      label: Run migrations
+      kind: utility
+      icon: database
+      description: applies pending database migrations, then exits
+      run: [npm, run, migrate]
+      # Marks the action as long-running in the UI.
+      slow: true
+      timeoutMs: 300000
+      successMessage: migrations applied

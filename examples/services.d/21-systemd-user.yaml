@@ -1,0 +1,28 @@
+# A unit in your *own* user manager (`systemctl --user`).
+#
+# The most privilege-friendly option there is: no sudo, no polkit, no rules to
+# install. Prefer this whenever a service can run as your user.
+
+id: syncthing
+name: Syncthing
+description: File synchronisation daemon running in the user manager
+icon: network
+type: systemd
+group: infrastructure
+tags: [systemd, user-scope, example]
+enabled: true
+
+urls:
+  - label: web UI
+    url: http://127.0.0.1:8384/
+    primary: true
+ports:
+  - port: 8384
+    label: http
+
+provider:
+  unit: syncthing.service
+  scope: user
+  useSudo: false
+  actions: [start, stop, restart]
+  confirm: [stop]

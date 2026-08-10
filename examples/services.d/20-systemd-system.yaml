@@ -1,0 +1,36 @@
+# A unit in the *system* manager.
+#
+# Status is read with `systemctl show` and needs no privileges at all. Mutating
+# verbs are wrapped in `sudo -n` (non-interactive) so a missing sudoers rule fails
+# immediately with a readable message instead of hanging on a password prompt.
+#
+# Install a narrow rule first — see contrib/sudoers.d/switchyard.example:
+#
+#   you ALL=(root) NOPASSWD: /usr/bin/systemctl start chrony.service, \
+#                            /usr/bin/systemctl stop chrony.service, \
+#                            /usr/bin/systemctl restart chrony.service, \
+#                            /usr/bin/systemctl reload chrony.service
+#
+# Reading the system journal for the Logs tab needs membership in the
+# `systemd-journal` or `adm` group.
+
+id: chrony
+name: chrony (NTP)
+description: System time synchronisation daemon
+icon: clock
+type: systemd
+group: infrastructure
+tags: [systemd, time, example]
+enabled: true
+
+provider:
+  unit: chrony.service # a bare name gets `.service` appended
+  scope: system # system | user
+  useSudo: true # default: true for system scope, false for user scope
+  sudoPath: sudo # absolute path also fine, e.g. /usr/bin/sudo
+  systemctlPath: systemctl
+  journalctlPath: journalctl
+  # Available verbs: start, stop, restart, reload, enable, disable.
+  actions: [start, stop, restart, reload, enable, disable]
+  # `stop` always asks for confirmation; add the others you want to guard.
+  confirm: [restart, disable]

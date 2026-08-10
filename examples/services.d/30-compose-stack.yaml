@@ -1,0 +1,33 @@
+# A Docker Compose project defined by a single file.
+#
+# The provider reports per-container state, health, image, exit code, published
+# ports and exact start time, and aggregates them: all up = running, partially up
+# or unhealthy = degraded, none up after a non-zero exit = failed. It also warns
+# when a container is up *without* its published ports — which happens silently
+# when a host port is already taken.
+#
+# Needs access to the Docker socket: rootless Docker, or membership in the
+# `docker` group (root-equivalent — see docs/PRIVILEGES.md).
+
+id: postgres-local
+name: PostgreSQL (local)
+description: Local PostgreSQL instance for development
+icon: database
+type: compose
+group: containers
+tags: [postgres, compose, example]
+enabled: true
+workdir: /srv/postgres-local
+
+ports:
+  - port: 5432
+    label: postgres
+
+provider:
+  file: /srv/postgres-local/docker-compose.yml
+  projectDir: /srv/postgres-local # defaults to the service workdir
+  projectName: postgres-local # defaults to the directory name
+  dockerPath: docker # e.g. /usr/bin/docker, or podman for a compatible CLI
+  # Available: up, down, restart, stop, start, pull, build, recreate, destroy.
+  # `destroy` is `down -v` and deletes named volumes — opt in deliberately.
+  actions: [up, down, restart, stop, start, pull, recreate]

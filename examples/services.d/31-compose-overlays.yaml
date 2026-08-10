@@ -1,0 +1,42 @@
+# A Compose project built from a base file plus an overlay, with a profile, an
+# env file and a longer budget for image builds.
+#
+# Ordering matters exactly as it does on the command line: files are passed as
+# `-f base -f overlay`, so the overlay wins. Note that compose *merges* list
+# values such as `ports:` rather than replacing them — if you need a different
+# host port, parameterise it in the base file (`"${APP_PORT:-8080}:80"`) and set
+# the variable in the env file instead of publishing it twice.
+
+id: qa-stack
+name: QA stack
+description: QA environment composed from a base file and a local overlay
+icon: layers
+type: compose
+group: containers
+tags: [qa, compose, example]
+enabled: true
+workdir: /srv/qa-stack
+
+# Long-running image builds should not fight the confirmation dialog.
+confirm: [build]
+
+urls:
+  - label: app
+    url: http://127.0.0.1:8180/
+    primary: true
+
+provider:
+  files:
+    - /srv/qa-stack/docker-compose.yml
+    - /srv/qa-stack/docker-compose.local.yml
+  projectDir: /srv/qa-stack
+  projectName: qa-stack
+  envFile: /srv/qa-stack/.env
+  # Extra compose-level flags, passed before the subcommand.
+  composeArgs: ['--profile', 'qa']
+  actions: [up, down, restart, pull, build, recreate, destroy]
+  # Budget for up / down / pull / build / recreate / destroy.
+  slowTimeoutMs: 900000
+  # With true, containers that have no healthcheck at all count as "not yet
+  # proven healthy" and hold the stack at degraded. Default false.
+  requireHealthchecks: false

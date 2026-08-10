@@ -1,0 +1,69 @@
+# A custom nginx instance with its own prefix, config, pid file and logs.
+#
+# Runs entirely as your own user: unprivileged port 8480, nothing outside the
+# repository, no sudo. Works in a fresh clone without editing — `workdir` points
+# at the repository root and every path below is relative to it.
+#
+# Pattern worth stealing: the pid file decides running/stopped, while `nginx -t`
+# grades the health of a live process. A process that is up with a broken config
+# therefore shows as "degraded" instead of a confident green.
+
+id: nginx-local
+name: nginx (local)
+description: Unprivileged nginx instance with its own prefix and configuration
+icon: globe
+type: command
+group: web
+tags: [http, nginx, example]
+enabled: true
+
+# Relative workdir resolves against the directory holding this file.
+workdir: ..
+
+urls:
+  - label: switchyard.localhost
+    url: http://127.0.0.1:8480/
+    primary: true
+  - label: health
+    url: http://127.0.0.1:8480/healthz
+ports:
+  - port: 8480
+    label: http
+
+provider:
+  # Relative pid files resolve against `workdir`.
+  pidFile: examples/nginx/run/nginx.pid
+  status:
+    run: [nginx, -p, examples/nginx, -c, nginx.conf, -t]
+    interpret: exit
+    successState: running
+    failureState: degraded
+  logs:
+    run: [tail, examples/nginx/logs/error.log]
+    tailArg: -n
+    source: nginx error.log
+  actions:
+    - id: start
+      label: Start
+      kind: primary
+      run: [nginx, -p, examples/nginx, -c, nginx.conf]
+      successMessage: nginx started on 127.0.0.1:8480
+      enabledIn: [stopped, failed, unknown]
+    - id: stop
+      label: Stop
+      kind: danger
+      confirm: true
+      run: [nginx, -p, examples/nginx, -c, nginx.conf, -s, quit]
+      enabledIn: [running, degraded]
+    - id: reload
+      label: Reload
+      kind: secondary
+      run: [nginx, -p, examples/nginx, -c, nginx.conf, -s, reload]
+      successMessage: configuration reloaded without dropping connections
+      enabledIn: [running, degraded]
+    - id: test
+      label: Test config
+      kind: utility
+      icon: shield-check
+      description: nginx -t against this instance's configuration
+      run: [nginx, -p, examples/nginx, -c, nginx.conf, -t]

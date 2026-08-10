@@ -1,0 +1,41 @@
+# Example sudoers rules for Switchyard.
+#
+# Install with:
+#   sudo install -m 0440 -o root -g root \
+#       contrib/sudoers.d/switchyard.example /etc/sudoers.d/switchyard
+#   sudo visudo -cf /etc/sudoers.d/switchyard
+#
+# Rules of thumb:
+#   * name the exact unit — never `systemctl *`;
+#   * list only the verbs you want; `stop` on a database is not `reload` on a proxy;
+#   * always use absolute paths, so PATH cannot shadow the binary;
+#   * one line per service keeps the audit trail readable.
+#
+# Replace `youruser` with the user Switchyard runs as, and adjust the unit names.
+# Switchyard calls sudo with `-n`, so a rule that would prompt for a password
+# fails fast with a readable error instead of hanging.
+
+# ── systemd units ────────────────────────────────────────────────────────────
+# Docker daemon: restart only. Restarting it stops every running container.
+youruser ALL=(root) NOPASSWD: /usr/bin/systemctl restart docker.service
+
+# A system nginx: reload and config test are the common operations; keep stop out
+# unless you really want it available from a browser tab.
+# youruser ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx.service, \
+#                              /usr/bin/systemctl restart nginx.service
+# youruser ALL=(root) NOPASSWD: /usr/sbin/nginx -t
+
+# Time sync daemon, full control:
+# youruser ALL=(root) NOPASSWD: /usr/bin/systemctl start chrony.service, \
+#                              /usr/bin/systemctl stop chrony.service, \
+#                              /usr/bin/systemctl restart chrony.service, \
+#                              /usr/bin/systemctl reload chrony.service
+
+# ── What NOT to write ────────────────────────────────────────────────────────
+# youruser ALL=(root) NOPASSWD: /usr/bin/systemctl          # every unit, every verb
+# youruser ALL=(root) NOPASSWD: /usr/bin/systemctl restart *  # any unit
+# youruser ALL=(root) NOPASSWD: ALL                         # the whole machine
+#
+# Docker needs no sudoers entry: use rootless Docker, or accept that membership in
+# the `docker` group is root-equivalent. A sudo rule for `docker` grants the same
+# thing with extra steps. See docs/PRIVILEGES.md.

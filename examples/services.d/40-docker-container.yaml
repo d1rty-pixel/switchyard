@@ -1,0 +1,36 @@
+# A standalone Docker container — one that was started with `docker run` or by
+# another tool, and is not part of a Compose project.
+#
+# Status, health, restart policy, restart count and published ports all come from
+# a single `docker inspect`. Recreating a container is intentionally not offered:
+# that needs the original `docker run` arguments, which belong in a compose file.
+#
+# This example ships switched off. Flip `enabled` to true after adjusting the
+# container name — it is the flag for keeping a definition around without having
+# it polled or listed.
+
+id: registry-mirror
+name: Registry mirror
+description: Pull-through registry cache on port 5000
+icon: boxes
+type: docker
+group: infrastructure
+tags: [docker, registry, example]
+enabled: false
+
+urls:
+  - label: v2 API
+    url: http://127.0.0.1:5000/v2/
+    primary: true
+
+provider:
+  container: registry-mirror # name or id
+  # Required for the `pull` action: the image reference must come from config,
+  # never from the daemon or the API.
+  image: registry:2
+  dockerPath: docker
+  # Available: start, stop, restart, pause, unpause, pull.
+  actions: [start, stop, restart, pause, unpause, pull]
+  confirm: [stop, restart]
+  # Grace period Docker gives the container before killing it.
+  stopTimeoutSec: 15

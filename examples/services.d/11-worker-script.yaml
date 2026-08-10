@@ -1,0 +1,50 @@
+# A service managed by a hand-written script — the case the `command` provider
+# exists for. The script implements start / stop / restart / status / logs, and
+# `status` exits 0 when the worker runs and non-zero when it does not, which is
+# what `interpret: exit` expects.
+#
+# Works in a fresh clone without editing.
+
+id: worker-script
+name: Sample worker
+description: Script-managed background worker used to exercise the command provider
+icon: cpu
+type: command
+group: development
+tags: [example, script]
+enabled: true
+workdir: ..
+
+# Environment entries are merged into every command of this service. Values stay
+# on the server: the UI only ever shows the variable names.
+env:
+  SWITCHYARD_WORKER_INTERVAL: '5'
+
+provider:
+  status:
+    run: [examples/scripts/sample-worker.sh, status]
+    interpret: exit
+    successState: running
+    failureState: stopped
+    # Put the script's own status line on the card instead of a generic message.
+    useStdoutAsSummary: true
+  logs:
+    run: [examples/scripts/sample-worker.sh, logs]
+    tailArg: -n
+    source: sample-worker.log
+  actions:
+    - id: start
+      label: Start
+      kind: primary
+      run: [examples/scripts/sample-worker.sh, start]
+      enabledIn: [stopped, failed, unknown]
+    - id: stop
+      label: Stop
+      kind: danger
+      confirm: true
+      run: [examples/scripts/sample-worker.sh, stop]
+      enabledIn: [running, degraded]
+    - id: restart
+      label: Restart
+      kind: secondary
+      run: [examples/scripts/sample-worker.sh, restart]
