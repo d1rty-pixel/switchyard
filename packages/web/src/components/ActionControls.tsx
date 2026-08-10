@@ -19,6 +19,7 @@ export interface ActionButtonProps {
   disabled: boolean;
   disabledReason?: string;
   onRun: () => void;
+  /** Tighter padding and no "slow" hint — used by the table view's rows. */
   compact?: boolean;
 }
 
@@ -65,6 +66,8 @@ export interface ActionRowProps {
   inlineLimit?: number;
   onRun: (action: ActionDescriptor) => void;
   compact?: boolean;
+  /** False keeps the row on one line — table cells size to their content. */
+  wrap?: boolean;
 }
 
 /**
@@ -78,6 +81,7 @@ export function ActionRow({
   inlineLimit = 3,
   onRun,
   compact,
+  wrap = true,
 }: ActionRowProps) {
   const busy = service.busy ?? null;
   const candidates = service.actions.filter((action) => inlineKinds.includes(action.kind));
@@ -107,7 +111,7 @@ export function ActionRow({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className={clsx('flex items-center gap-1.5', wrap ? 'flex-wrap' : 'flex-nowrap')}>
       {inline.map((action) => {
         const reason = reasonFor(action);
         return (

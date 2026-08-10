@@ -1,10 +1,11 @@
-import { Loader2, RadioTower, RefreshCw, Rows3, Search, Square, X } from 'lucide-react';
+import { LayoutGrid, Loader2, RadioTower, RefreshCw, Search, Table2, X } from 'lucide-react';
 import clsx from 'clsx';
 import { forwardRef } from 'react';
 import { Logo, Wordmark } from './Logo';
 import { StateDistribution } from './StatusIndicator';
 import { formatAgo } from '../lib/format';
 import type { StreamState } from '../lib/hooks';
+import type { ViewMode } from '../lib/types';
 
 export interface TopBarProps {
   total: number;
@@ -12,8 +13,8 @@ export interface TopBarProps {
   stream: StreamState;
   search: string;
   onSearch: (value: string) => void;
-  density: 'compact' | 'comfortable';
-  onDensity: (density: 'compact' | 'comfortable') => void;
+  view: ViewMode;
+  onView: (view: ViewMode) => void;
   onReload: () => void;
   reloading: boolean;
   configPath?: string;
@@ -27,8 +28,8 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
     stream,
     search,
     onSearch,
-    density,
-    onDensity,
+    view,
+    onView,
     onReload,
     reloading,
     configPath,
@@ -94,15 +95,11 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
           <StreamIndicator stream={stream} />
 
           <div className="flex items-center rounded-xl border border-line bg-surface/60 p-0.5">
-            <IconButton
-              active={density === 'comfortable'}
-              onClick={() => onDensity('comfortable')}
-              label="Comfortable layout"
-            >
-              <Rows3 className="size-3.5" />
+            <IconButton active={view === 'cards'} onClick={() => onView('cards')} label="Card view">
+              <LayoutGrid className="size-3.5" />
             </IconButton>
-            <IconButton active={density === 'compact'} onClick={() => onDensity('compact')} label="Compact layout">
-              <Square className="size-3.5" />
+            <IconButton active={view === 'table'} onClick={() => onView('table')} label="Table view">
+              <Table2 className="size-3.5" />
             </IconButton>
           </div>
 

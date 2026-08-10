@@ -168,3 +168,9 @@ export interface LogsResponse {
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown };
 }
+
+/**
+ * How the service list is laid out. Not a wire type — a UI preference, kept
+ * here so the top bar and the dashboard agree on it.
+ */
+export type ViewMode = 'cards' | 'table';

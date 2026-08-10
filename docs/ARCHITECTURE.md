@@ -111,7 +111,7 @@ packages/web/src
 ├── App.tsx               layout, filtering, sorting, action dispatch
 ├── index.css             design tokens, backdrop, glass/card primitives
 ├── lib/                  api client, wire types, hooks, formatting, status map
-└── components/           TopBar, FilterBar, ServiceCard, ServiceDrawer,
+└── components/           TopBar, FilterBar, ServiceCard, ServiceTable, ServiceDrawer,
                           LogPane, ActionControls, ConfirmDialog, Toasts, Logo
 ```
 

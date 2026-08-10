@@ -15,10 +15,11 @@ import {
   useTicker,
 } from './lib/hooks';
 import { stateStyle } from './lib/status';
-import type { ActionDescriptor, ActionRecord, ServiceSummary } from './lib/types';
+import type { ActionDescriptor, ActionRecord, ServiceSummary, ViewMode } from './lib/types';
 import { TopBar } from './components/TopBar';
 import { FilterBar, type Filters } from './components/FilterBar';
 import { ServiceCard, SkeletonCard } from './components/ServiceCard';
+import { ServiceTable, SkeletonTable } from './components/ServiceTable';
 import { ServiceDrawer } from './components/ServiceDrawer';
 import { ConfirmDialog, type ConfirmRequest } from './components/ConfirmDialog';
 import {
@@ -46,7 +47,7 @@ export default function App() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounced(search, 120);
   const [filters, setFilters] = usePersistentState<Filters>('filters', DEFAULT_FILTERS);
-  const [density, setDensity] = usePersistentState<'compact' | 'comfortable'>('density', 'comfortable');
+  const [view, setView] = usePersistentState<ViewMode>('view', 'cards');
   const [openId, setOpenId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<(ConfirmRequest & { run: () => void }) | null>(null);
 
@@ -94,6 +95,12 @@ export default function App() {
     const order = new Map<string, number>();
     (meta.data?.groups ?? []).forEach((group, index) => order.set(group.id, group.order ?? index));
     return order;
+  }, [meta.data]);
+
+  const groupNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const group of meta.data?.groups ?? []) names.set(group.id, group.name);
+    return names;
   }, [meta.data]);
 
   const visible = useMemo(() => {
@@ -187,8 +194,8 @@ export default function App() {
         stream={stream}
         search={search}
         onSearch={setSearch}
-        density={density}
-        onDensity={setDensity}
+        view={view}
+        onView={setView}
         reloading={reloadConfig.isPending}
         configPath={meta.data?.configPath}
         version={meta.data?.app.version}
@@ -232,13 +239,16 @@ export default function App() {
           />
         )}
 
-        {!apiDown && services.isPending && (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(21rem,1fr))] gap-3.5">
-            {Array.from({ length: 6 }, (_, index) => (
-              <SkeletonCard key={index} delay={index * 90} />
-            ))}
-          </div>
-        )}
+        {!apiDown && services.isPending &&
+          (view === 'table' ? (
+            <SkeletonTable />
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(21rem,1fr))] gap-3.5">
+              {Array.from({ length: 6 }, (_, index) => (
+                <SkeletonCard key={index} delay={index * 90} />
+              ))}
+            </div>
+          ))}
 
         {!apiDown && !services.isPending && all.length === 0 && (
           <NoServicesState configPath={meta.data?.configPath} />
@@ -246,21 +256,28 @@ export default function App() {
 
         {!apiDown && all.length > 0 && visible.length === 0 && <NoMatchesState onClear={clearFilters} />}
 
-        {visible.length > 0 && (
-          // No AnimatePresence: cards unmount as soon as a filter excludes them.
-          // Enter animation and layout transitions live on the card itself.
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(21rem,1fr))] gap-3.5">
-            {visible.map((service) => (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                density={density}
-                onOpen={() => setOpenId(service.id)}
-                onRunAction={requestAction}
-              />
-            ))}
-          </div>
-        )}
+        {visible.length > 0 &&
+          (view === 'table' ? (
+            <ServiceTable
+              services={visible}
+              groupNames={groupNames}
+              onOpen={(service) => setOpenId(service.id)}
+              onRunAction={requestAction}
+            />
+          ) : (
+            // No AnimatePresence: cards unmount as soon as a filter excludes them.
+            // Enter animation and layout transitions live on the card itself.
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(21rem,1fr))] gap-3.5">
+              {visible.map((service) => (
+                <ServiceCard
+                  key={service.id}
+                  service={service}
+                  onOpen={() => setOpenId(service.id)}
+                  onRunAction={requestAction}
+                />
+              ))}
+            </div>
+          ))}
       </main>
 
       {meta.data && <DisabledServices services={meta.data.disabledServices} />}

@@ -235,7 +235,7 @@ export function useDebounced<T>(value: T, delayMs = 150): T {
   return debounced;
 }
 
-/** Persists small UI preferences (density, filters) across reloads. */
+/** Persists small UI preferences (view mode, filters) across reloads. */
 export function usePersistentState<T>(key: string, initial: T): [T, (value: T) => void] {
   const storageKey = `switchyard.${key}`;
   const [value, setValue] = useState<T>(() => {

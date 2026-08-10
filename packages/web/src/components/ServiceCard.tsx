@@ -9,16 +9,14 @@ import type { ActionDescriptor, ServiceSummary } from '../lib/types';
 
 export interface ServiceCardProps {
   service: ServiceSummary;
-  density: 'compact' | 'comfortable';
   onOpen: () => void;
   onRunAction: (service: ServiceSummary, action: ActionDescriptor) => void;
 }
 
-export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCardProps) {
+export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) {
   const style = stateStyle(service.state);
   const Icon = iconFor(service.icon, service.type);
   const uptime = formatUptime(service.since);
-  const compact = density === 'compact';
   const primaryUrl = service.urls.find((url) => url.primary) ?? service.urls[0];
   const highlights = service.metrics.filter((metric) => metric.highlight).slice(0, 3);
   const warning = service.warnings[0] ?? service.errors[0];
@@ -45,7 +43,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
         }}
       />
 
-      <div className={clsx('flex items-start gap-3', compact ? 'p-3 pl-4' : 'p-4 pl-5')}>
+      <div className="flex items-start gap-3 p-4 pl-5">
         <button
           type="button"
           onClick={onOpen}
@@ -75,7 +73,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
             <StatusBadge state={service.state} />
           </div>
 
-          {!compact && service.description && (
+          {service.description && (
             <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-ink-2">{service.description}</p>
           )}
 
@@ -103,7 +101,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
       </div>
 
       {(highlights.length > 0 || service.ports.length > 0 || primaryUrl) && (
-        <div className={clsx('flex flex-wrap items-center gap-1.5 px-4 pb-3 pl-5', compact && 'px-3 pb-2.5 pl-4')}>
+        <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pl-5">
           {highlights.map((metric) => (
             <span
               key={metric.label}
@@ -161,13 +159,8 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
         </div>
       )}
 
-      <div
-        className={clsx(
-          'mt-auto flex items-center justify-between gap-2 border-t border-line-soft/70 px-4 py-2.5 pl-5',
-          compact && 'px-3 py-2 pl-4',
-        )}
-      >
-        <ActionRow service={service} onRun={(action) => onRunAction(service, action)} compact={compact} />
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-line-soft/70 px-4 py-2.5 pl-5">
+        <ActionRow service={service} onRun={(action) => onRunAction(service, action)} />
         <div className="flex shrink-0 items-center gap-2 text-[11.5px] text-faint">
           {service.lastAction && (
             <span

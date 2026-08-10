@@ -232,11 +232,17 @@ single `docker inspect`.
 * **Search** — `/` focuses the field; matches name, id, description, tags, type,
   group, state, ports and URLs (all terms must match).
 * **Filter** — group pills, status chips (multi-select) and provider chips.
-  Filters and layout density persist across reloads.
+  Filters and the chosen view persist across reloads.
 * **Sort** — group, name, status (worst first) or last action.
+* **View** — *cards* or *table*. Cards show everything about a service at once
+  and read well up to a few dozen services; the table puts one service per row
+  with aligned columns, which is what a long list needs to stay scannable.
 * **Card** — status badge, provider, live summary, uptime, highlighted metrics,
   ports, primary URL, first warning, inline actions, last action, last check.
-* **Drawer** — click a card: full status metrics, container list, endpoints, raw
+* **Table row** — the same facts as a column each: service, state, detail,
+  group, uptime, endpoints, actions, last check. Secondary columns drop out on
+  narrow viewports rather than reflowing.
+* **Drawer** — click a service: full status metrics, container list, endpoints, raw
   probe output, log tail, action history with output, and the service definition
   (including which file it came from).
 * **Actions** — destructive ones ask for confirmation; while one runs, every
