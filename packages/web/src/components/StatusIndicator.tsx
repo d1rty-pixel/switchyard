@@ -98,7 +98,7 @@ export function StatusBadge({
     <span
       title={style.hint}
       className={clsx(
-        'inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] font-medium tracking-wide',
+        'inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[12px] font-medium tracking-wide',
         style.chip,
         className,
       )}

@@ -39,7 +39,7 @@ export function ActionButton({
       title={disabled ? disabledReason ?? action.description : action.description}
       className={clsx(
         'inline-flex items-center gap-1.5 rounded-lg border font-medium transition-all duration-150',
-        compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-[12px]',
+        compact ? 'px-2 py-1 text-[12px]' : 'px-2.5 py-1.5 text-[13px]',
         KIND_CLASS[action.kind],
         (disabled || running) && 'pointer-events-none opacity-40 shadow-none',
       )}
@@ -51,7 +51,7 @@ export function ActionButton({
       ) : null}
       {action.label}
       {action.slow && !running && !compact && (
-        <span className="text-[9px] uppercase tracking-wider opacity-60">slow</span>
+        <span className="text-[10px] uppercase tracking-wider opacity-60">slow</span>
       )}
     </button>
   );
@@ -221,7 +221,7 @@ function OverflowMenu({
         aria-label="More actions"
         aria-expanded={open}
         className={clsx(
-          'inline-flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1.5 text-[12px] text-muted transition-colors hover:bg-surface-2 hover:text-ink',
+          'inline-flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1.5 text-[13px] text-muted transition-colors hover:bg-surface-2 hover:text-ink',
           open && 'bg-surface-2 text-ink',
         )}
       >
@@ -264,7 +264,7 @@ function OverflowMenu({
                     <span className="mt-0.5 size-3.5" />
                   )}
                   <span className="min-w-0">
-                    <span className="block text-[12px] font-medium text-ink">{action.label}</span>
+                    <span className="block text-[13px] font-medium text-ink">{action.label}</span>
                     {action.description && (
                       <span className="mono block truncate text-faint">{action.description}</span>
                     )}

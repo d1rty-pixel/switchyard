@@ -98,14 +98,14 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <div className="flex items-start gap-3 p-3 pl-4">
         <div className="mt-0.5 shrink-0">{tone.icon}</div>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-ink">{toast.title}</p>
-          {toast.message && <p className="mt-0.5 break-words text-[12px] leading-relaxed text-ink-2">{toast.message}</p>}
+          <p className="text-[14px] font-medium text-ink">{toast.title}</p>
+          {toast.message && <p className="mt-0.5 break-words text-[13px] leading-relaxed text-ink-2">{toast.message}</p>}
           {toast.details && (
             <>
               <button
                 type="button"
                 onClick={() => setExpanded((value) => !value)}
-                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-muted transition-colors hover:text-signal"
+                className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-medium text-muted transition-colors hover:text-signal"
               >
                 <ChevronDown className={clsx('size-3 transition-transform', expanded && 'rotate-180')} />
                 {expanded ? 'Hide output' : 'Show output'}

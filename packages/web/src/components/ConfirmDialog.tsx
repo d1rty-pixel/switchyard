@@ -62,8 +62,8 @@ export function ConfirmDialog({
                 <AlertTriangle className="size-4.5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-[15px] font-semibold text-ink">{request.title}</h2>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{request.body}</p>
+                <h2 className="text-[16px] font-semibold text-ink">{request.title}</h2>
+                <p className="mt-1 text-[14px] leading-relaxed text-ink-2">{request.body}</p>
                 {request.detail && (
                   <pre className="mono mt-2.5 overflow-x-auto rounded-lg border border-line bg-base/60 p-2 text-faint">
                     {request.detail}
@@ -75,7 +75,7 @@ export function ConfirmDialog({
               <button
                 type="button"
                 onClick={onCancel}
-                className="rounded-lg border border-line px-3 py-1.5 text-[12px] font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
+                className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
               >
                 Cancel
               </button>
@@ -84,7 +84,7 @@ export function ConfirmDialog({
                 onClick={onConfirm}
                 autoFocus
                 className={clsx(
-                  'rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors',
+                  'rounded-lg border px-3 py-1.5 text-[13px] font-semibold transition-colors',
                   request.destructive
                     ? 'border-st-failed/40 bg-st-failed/15 text-st-failed hover:bg-st-failed/25'
                     : 'border-signal/40 bg-signal/15 text-signal hover:bg-signal/25',

@@ -45,7 +45,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
         <div className="flex items-center gap-2.5">
           <Logo className="size-9" />
           <div className="leading-tight">
-            <Wordmark className="text-[15px]" />
+            <Wordmark className="text-[16px]" />
             <p className="text-[10.5px] text-faint" title={configPath}>
               {version ? `v${version}` : 'local control panel'}
             </p>
@@ -61,7 +61,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
               onChange={(event) => onSearch(event.target.value)}
               placeholder="Search services, tags, ports…"
               aria-label="Search services"
-              className="min-w-0 flex-1 bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[14px] text-ink placeholder:text-faint focus:outline-none"
             />
             {search ? (
               <button
@@ -73,7 +73,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
                 <X className="size-3.5" />
               </button>
             ) : (
-              <kbd className="hidden rounded border border-line bg-surface-2 px-1.5 py-px text-[10px] text-faint sm:block">
+              <kbd className="hidden rounded border border-line bg-surface-2 px-1.5 py-px text-[11px] text-faint sm:block">
                 /
               </kbd>
             )}
@@ -110,7 +110,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
             type="button"
             onClick={onReload}
             title="Reload switchyard.yaml from disk"
-            className="flex items-center gap-1.5 rounded-xl border border-line bg-surface/60 px-2.5 py-1.5 text-[12px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
+            className="flex items-center gap-1.5 rounded-xl border border-line bg-surface/60 px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
           >
             {reloading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             <span className="hidden sm:inline">Reload config</span>
@@ -132,7 +132,7 @@ function StreamIndicator({ stream }: { stream: StreamState }) {
           : 'Event stream disconnected — falling back to polling'
       }
       className={clsx(
-        'flex items-center gap-1.5 rounded-xl border px-2 py-1.5 text-[11px] font-medium',
+        'flex items-center gap-1.5 rounded-xl border px-2 py-1.5 text-[12px] font-medium',
         stream.connected
           ? 'border-signal/30 bg-signal/10 text-signal'
           : 'border-st-degraded/30 bg-st-degraded/10 text-st-degraded',

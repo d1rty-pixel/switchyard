@@ -162,7 +162,7 @@
     background-color: var(--color-base);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.5;
   }
 
@@ -273,7 +273,7 @@
 
   .mono {
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 13px;
   }
 }
 

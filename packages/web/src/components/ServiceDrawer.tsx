@@ -97,12 +97,12 @@ export function ServiceDrawer({
             {detail.isError && (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
                 <AlertTriangle className="size-6 text-st-failed" />
-                <p className="text-[13px] text-ink">Could not load this service</p>
+                <p className="text-[14px] text-ink">Could not load this service</p>
                 <p className="mono text-faint">{(detail.error as Error).message}</p>
                 <button
                   type="button"
                   onClick={() => detail.refetch()}
-                  className="rounded-lg border border-line px-3 py-1.5 text-[12px] text-ink-2 hover:bg-surface-2"
+                  className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-2 hover:bg-surface-2"
                 >
                   Try again
                 </button>
@@ -144,7 +144,7 @@ export function ServiceDrawer({
                         <Icon className="size-3.5" />
                         {label}
                         {id === 'history' && service.history.length > 0 && (
-                          <span className="num rounded bg-surface-2 px-1 text-[10px] text-muted">
+                          <span className="num rounded bg-surface-2 px-1 text-[11px] text-muted">
                             {service.history.length}
                           </span>
                         )}
@@ -223,7 +223,7 @@ function DrawerHeader({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="truncate text-[16px] font-semibold text-ink">{service.name}</h2>
+            <h2 className="truncate text-[17px] font-semibold text-ink">{service.name}</h2>
             <StatusBadge state={service.state} />
           </div>
           <p className="mono mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-faint">
@@ -267,7 +267,7 @@ function DrawerHeader({
       </div>
 
       {service.busy && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-signal/25 bg-signal/[0.07] px-3 py-2 text-[12px] text-signal">
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-signal/25 bg-signal/[0.07] px-3 py-2 text-[13px] text-signal">
           <StatusIndicator state={service.state} size={10} />
           <span className="font-medium">{service.busy.label}</span>
           <span className="text-signal/70">running since {formatClock(service.busy.startedAt)}</span>
@@ -300,7 +300,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
               <li
                 key={index}
                 className={clsx(
-                  'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[12px] leading-relaxed',
+                  'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[13px] leading-relaxed',
                   problem.severe
                     ? 'border-st-failed/25 bg-st-failed/[0.07] text-st-failed'
                     : 'border-st-degraded/25 bg-st-degraded/[0.06] text-st-degraded',
@@ -325,7 +325,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
                 <dt className="shrink-0 text-[11.5px] text-muted">{metric.label}</dt>
                 <dd
                   className={clsx(
-                    'num min-w-0 truncate text-right text-[12px] font-medium',
+                    'num min-w-0 truncate text-right text-[13px] font-medium',
                     metric.kind === 'mono' && 'mono',
                     metric.tone === 'good' && 'text-st-running',
                     metric.tone === 'warn' && 'text-st-degraded',
@@ -361,7 +361,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
                 href={url.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-2/50 px-2.5 py-1.5 text-[12px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-2/50 px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
               >
                 {url.label}
                 <ArrowUpRight className="size-3" />
@@ -370,11 +370,11 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
             {service.ports.map((port) => (
               <span
                 key={`${port.protocol}-${port.hostPort ?? port.port}`}
-                className="num inline-flex items-center gap-1.5 rounded-lg border border-route/25 bg-route/10 px-2.5 py-1.5 text-[12px] text-route"
+                className="num inline-flex items-center gap-1.5 rounded-lg border border-route/25 bg-route/10 px-2.5 py-1.5 text-[13px] text-route"
               >
                 <Radio className="size-3" />
                 {port.hostPort ? `${port.hostPort} → ${port.port}` : port.port}
-                <span className="text-[10px] uppercase text-route/60">{port.protocol}</span>
+                <span className="text-[11px] uppercase text-route/60">{port.protocol}</span>
                 {port.label && <span className="text-route/70">{port.label}</span>}
               </span>
             ))}
@@ -433,8 +433,8 @@ function HistoryTab({ service }: { service: ServiceDetail }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
         <History className="size-6 text-faint" />
-        <p className="text-[13px] text-ink-2">No actions run yet</p>
-        <p className="text-[12px] text-faint">Actions triggered from Switchyard appear here with their output.</p>
+        <p className="text-[14px] text-ink-2">No actions run yet</p>
+        <p className="text-[13px] text-faint">Actions triggered from Switchyard appear here with their output.</p>
       </div>
     );
   }
@@ -454,12 +454,12 @@ function HistoryTab({ service }: { service: ServiceDetail }) {
               )}
             />
             <span className="text-[12.5px] font-medium text-ink">{record.label}</span>
-            <span className="min-w-0 flex-1 truncate text-[12px] text-muted">{record.message}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-muted">{record.message}</span>
             <span className="num shrink-0 text-[10.5px] text-faint">{formatDuration(record.durationMs)}</span>
             <span className="num shrink-0 text-[10.5px] text-faint">{formatClock(record.startedAt)}</span>
           </summary>
           <div className="space-y-2 border-t border-line-soft px-3 py-2.5">
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-faint">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-faint">
               <span>
                 action <span className="mono text-ink-2">{record.actionId}</span>
               </span>
@@ -537,7 +537,7 @@ function ConfigTab({ service }: { service: ServiceDetail }) {
 function CommandOutputBlock({ output }: { output: NonNullable<ServiceDetail['lastProbe']> }) {
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-faint">
         <span>
           exit <span className="num text-ink-2">{output.exitCode ?? '—'}</span>
         </span>
@@ -579,7 +579,7 @@ function Section({
 }) {
   return (
     <section>
-      <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
+      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider text-faint">
         <Icon className="size-3.5" />
         {title}
       </h3>
@@ -592,7 +592,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-line-soft/60 pb-1 last:border-0">
       <dt className="shrink-0 text-[11.5px] text-muted">{label}</dt>
-      <dd className={clsx('min-w-0 break-all text-right text-[12px] text-ink', mono && 'mono')}>{value}</dd>
+      <dd className={clsx('min-w-0 break-all text-right text-[13px] text-ink', mono && 'mono')}>{value}</dd>
     </div>
   );
 }

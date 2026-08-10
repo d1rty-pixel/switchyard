@@ -58,10 +58,10 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <button type="button" onClick={onOpen} className="min-w-0 text-left">
-              <h3 className="truncate text-[14px] font-semibold leading-tight text-ink transition-colors group-hover:text-signal">
+              <h3 className="truncate text-[15px] font-semibold leading-tight text-ink transition-colors group-hover:text-signal">
                 {service.name}
               </h3>
-              <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-faint">
+              <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-faint">
                 <span className="rounded border border-line-soft bg-surface-2/60 px-1.5 py-px font-medium text-muted">
                   {service.providerLabel}
                 </span>
@@ -109,7 +109,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
               key={metric.label}
               title={metric.label}
               className={clsx(
-                'inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-[11px]',
+                'inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-[12px]',
                 metric.tone === 'good' && 'text-st-running/90',
                 metric.tone === 'warn' && 'text-st-degraded/90',
                 metric.tone === 'bad' && 'text-st-failed/90',
@@ -124,7 +124,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
           {service.ports.slice(0, 3).map((port) => (
             <span
               key={`${port.protocol}-${port.hostPort ?? port.port}`}
-              className="num inline-flex items-center gap-1 rounded-md border border-route/25 bg-route/10 px-1.5 py-0.5 text-[11px] text-route"
+              className="num inline-flex items-center gap-1 rounded-md border border-route/25 bg-route/10 px-1.5 py-0.5 text-[12px] text-route"
               title={port.label ? `${port.label} (${port.protocol})` : port.protocol}
             >
               <Radio className="size-3" />
@@ -138,7 +138,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
               target="_blank"
               rel="noreferrer"
               onClick={(event) => event.stopPropagation()}
-              className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-[11px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
+              className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-[12px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
             >
               {primaryUrl.label}
               <ArrowUpRight className="size-3" />

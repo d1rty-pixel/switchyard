@@ -48,7 +48,7 @@ export function NoMatchesState({ onClear }: { onClear: () => void }) {
       <button
         type="button"
         onClick={onClear}
-        className="mt-4 rounded-lg border border-signal/35 bg-signal/12 px-3 py-1.5 text-[12px] font-medium text-signal transition-colors hover:bg-signal/20"
+        className="mt-4 rounded-lg border border-signal/35 bg-signal/12 px-3 py-1.5 text-[13px] font-medium text-signal transition-colors hover:bg-signal/20"
       >
         Clear filters
       </button>
@@ -69,7 +69,7 @@ export function ApiDownState({ message, onRetry }: { message: string; onRetry: (
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-lg border border-signal/35 bg-signal/12 px-3 py-1.5 text-[12px] font-medium text-signal transition-colors hover:bg-signal/20"
+          className="rounded-lg border border-signal/35 bg-signal/12 px-3 py-1.5 text-[13px] font-medium text-signal transition-colors hover:bg-signal/20"
         >
           Retry
         </button>
@@ -138,7 +138,7 @@ export function DisabledServices({ services }: { services: DisabledService[] }) 
                   {service.type} · {service.source.split('/').pop()}
                 </span>
               </span>
-              <span className="shrink-0 rounded border border-line-soft px-1.5 py-px text-[10px] text-faint">
+              <span className="shrink-0 rounded border border-line-soft px-1.5 py-px text-[11px] text-faint">
                 enabled: false
               </span>
             </li>
@@ -174,8 +174,8 @@ function Shell({
   return (
     <div className="animate-rise flex flex-col items-center justify-center px-6 py-20 text-center">
       <div className="mb-4 grid place-items-center">{icon}</div>
-      <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
-      <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-ink-2">{body}</p>
+      <h2 className="text-[16px] font-semibold text-ink">{title}</h2>
+      <p className="mt-1.5 max-w-md text-[14px] leading-relaxed text-ink-2">{body}</p>
       {children}
     </div>
   );

@@ -55,7 +55,7 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
               type="button"
               onClick={() => setTail(option)}
               className={clsx(
-                'num rounded-md px-1.5 py-0.5 text-[11px] transition-colors',
+                'num rounded-md px-1.5 py-0.5 text-[12px] transition-colors',
                 tail === option ? 'bg-surface-3 text-ink' : 'text-muted hover:text-ink',
               )}
             >

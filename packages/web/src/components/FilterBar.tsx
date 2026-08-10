@@ -160,7 +160,7 @@ export function FilterBar({
           </select>
         </label>
 
-        <span className="num text-[11px] text-faint">
+        <span className="num text-[12px] text-faint">
           {visible === total ? `${total} services` : `${visible} of ${total}`}
         </span>
       </div>
@@ -185,7 +185,7 @@ function Pill({
       onClick={onClick}
       title={title}
       className={clsx(
-        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors',
+        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[13px] font-medium transition-colors',
         active ? 'bg-surface-3 text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]' : 'text-muted hover:text-ink',
       )}
     >
