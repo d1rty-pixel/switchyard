@@ -1,0 +1,4 @@
+# Drop one YAML file per service in this directory.
+#
+# Files here are git-ignored on purpose: they describe your machine. Copy-ready
+# examples covering every provider and option live in ../examples/services.d/.

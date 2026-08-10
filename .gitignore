@@ -1,0 +1,23 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.env
+.env.local
+
+# Local editor/agent settings
+.claude/
+.idea/
+.vscode/
+
+# Your own service definitions stay local. Generic, copy-ready examples for every
+# provider live in examples/services.d/.
+services.d/*.yaml
+services.d/*.yml
+switchyard.local.yaml
+
+# Runtime state of the bundled examples
+.state/
+examples/nginx/logs/*.log
+examples/nginx/run/*.pid
+examples/nginx/tmp/

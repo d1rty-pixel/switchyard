@@ -1,0 +1,50 @@
+# Switchyard main configuration.
+#
+# This file holds only global settings and group definitions. Services live in
+# one file per service under `services.d/`, which is picked up automatically.
+#
+# Everything Switchyard reads here is TRUSTED input: argv arrays in service
+# files are executed as the user running Switchyard. Treat these files like
+# systemd unit files. The browser can never send a command — it can only name a
+# service id and an action id that already exist in this configuration.
+
+version: 1
+
+settings:
+  host: 127.0.0.1 # loopback only; binding elsewhere needs allowRemoteBind
+  port: 7878
+  statusIntervalMs: 6000 # background status poll
+  commandTimeoutMs: 30000 # default per-command timeout
+  logsTail: 200
+  historyLimit: 25
+  statusConcurrency: 4
+
+# Directories scanned for per-service files (*.yaml / *.yml, non-recursive).
+# Defaults to ./services.d when the key is omitted; listed here for clarity.
+serviceDirs:
+  - services.d
+
+groups:
+  - id: web
+    name: Web
+    description: HTTP entry points and reverse proxies
+    icon: globe
+    order: 10
+  - id: containers
+    name: Containers
+    description: Compose projects and container workloads
+    icon: container
+    order: 20
+  - id: infrastructure
+    name: Infrastructure
+    description: System-level daemons
+    icon: server-cog
+    order: 30
+  - id: development
+    name: Development
+    description: Local development helpers
+    icon: code
+    order: 40
+  - id: other
+    name: Other
+    order: 90
