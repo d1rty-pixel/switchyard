@@ -124,7 +124,7 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-line-soft px-4 py-1.5 text-[10.5px] text-faint">
+      <div className="flex items-center justify-between border-t border-line-soft px-4 py-1.5 text-[11.5px] text-faint">
         <span className="num">{lines.length} lines</span>
         <span className="flex items-center gap-2">
           {query.isFetching && <Loader2 className="size-3 animate-spin" />}

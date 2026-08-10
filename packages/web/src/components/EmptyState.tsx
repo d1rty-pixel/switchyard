@@ -87,7 +87,7 @@ export function ConfigWarnings({ warnings }: { warnings: string[] }) {
       <div className="flex items-start gap-2.5 rounded-xl border border-st-degraded/25 bg-st-degraded/[0.06] px-3 py-2.5">
         <FileWarning className="mt-0.5 size-4 shrink-0 text-st-degraded" />
         <div className="min-w-0">
-          <p className="text-[12.5px] font-medium text-st-degraded">
+          <p className="text-[13.5px] font-medium text-st-degraded">
             {warnings.length === 1 ? 'Configuration warning' : `${warnings.length} configuration warnings`}
           </p>
           <ul className="mt-1 space-y-0.5">
@@ -117,7 +117,7 @@ export function DisabledServices({ services }: { services: DisabledService[] }) 
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 rounded-lg border border-line-soft bg-surface/40 px-2.5 py-1.5 text-[11.5px] text-muted transition-colors hover:text-ink"
+        className="flex items-center gap-2 rounded-lg border border-line-soft bg-surface/40 px-2.5 py-1.5 text-[12.5px] text-muted transition-colors hover:text-ink"
       >
         <PowerOff className="size-3.5" />
         {services.length} disabled {services.length === 1 ? 'service' : 'services'}
@@ -133,7 +133,7 @@ export function DisabledServices({ services }: { services: DisabledService[] }) 
             >
               <PowerOff className="size-3.5 shrink-0 text-faint" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12.5px] text-ink-2">{service.name}</span>
+                <span className="block truncate text-[13.5px] text-ink-2">{service.name}</span>
                 <span className="mono block truncate text-faint" title={service.source}>
                   {service.type} · {service.source.split('/').pop()}
                 </span>
@@ -154,7 +154,7 @@ export function InlineError({ message }: { message: string }) {
     <div className="mx-auto mb-4 flex max-w-[110rem] items-start gap-2 px-4 sm:px-6">
       <div className="flex w-full items-start gap-2.5 rounded-xl border border-st-failed/25 bg-st-failed/[0.06] px-3 py-2.5">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-st-failed" />
-        <p className="min-w-0 break-words text-[12.5px] text-st-failed">{message}</p>
+        <p className="min-w-0 break-words text-[13.5px] text-st-failed">{message}</p>
       </div>
     </div>
   );

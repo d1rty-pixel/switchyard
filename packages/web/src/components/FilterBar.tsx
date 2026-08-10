@@ -99,13 +99,13 @@ export function FilterBar({
               onClick={() => toggleState(state)}
               title={style.hint}
               className={clsx(
-                'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px] transition-all',
+                'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[12.5px] transition-all',
                 selected ? style.chip : 'border-line-soft bg-surface/40 text-muted hover:text-ink',
               )}
             >
               <StatusIndicator state={state} size={8} />
               {style.label}
-              <span className="num text-[10.5px] opacity-70">{count}</span>
+              <span className="num text-[11.5px] opacity-70">{count}</span>
             </button>
           );
         })}
@@ -120,7 +120,7 @@ export function FilterBar({
               type="button"
               onClick={() => toggleType(entry.type)}
               className={clsx(
-                'rounded-lg border px-2 py-1 text-[11.5px] transition-colors',
+                'rounded-lg border px-2 py-1 text-[12.5px] transition-colors',
                 filters.types.includes(entry.type)
                   ? 'border-route/40 bg-route/12 text-route'
                   : 'border-line-soft bg-surface/40 text-muted hover:text-ink',
@@ -137,14 +137,14 @@ export function FilterBar({
           <button
             type="button"
             onClick={() => onChange({ ...filters, group: null, states: [], types: [] })}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft px-2 py-1 text-[11.5px] text-muted transition-colors hover:text-ink"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft px-2 py-1 text-[12.5px] text-muted transition-colors hover:text-ink"
           >
             <FilterX className="size-3.5" />
             Clear
           </button>
         )}
 
-        <label className="flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2 py-1 text-[11.5px] text-muted">
+        <label className="flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2 py-1 text-[12.5px] text-muted">
           <ArrowDownUp className="size-3.5" />
           <span className="sr-only">Sort by</span>
           <select
@@ -195,5 +195,5 @@ function Pill({
 }
 
 function Count({ value }: { value: number }) {
-  return <span className="num text-[10.5px] text-faint">{value}</span>;
+  return <span className="num text-[11.5px] text-faint">{value}</span>;
 }

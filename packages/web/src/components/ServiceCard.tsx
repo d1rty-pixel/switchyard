@@ -76,10 +76,10 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
           </div>
 
           {!compact && service.description && (
-            <p className="mt-2 line-clamp-2 text-[12.5px] leading-relaxed text-ink-2">{service.description}</p>
+            <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-ink-2">{service.description}</p>
           )}
 
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-muted">
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
             {service.busy ? (
               <span className="flex items-center gap-1.5 text-signal">
                 <StatusIndicator state={service.state} size={9} />
@@ -148,7 +148,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
       )}
 
       {warning && (
-        <div className="mx-4 mb-3 ml-5 flex items-start gap-2 rounded-lg border border-st-degraded/25 bg-st-degraded/[0.07] px-2.5 py-1.5 text-[11.5px] leading-relaxed text-st-degraded">
+        <div className="mx-4 mb-3 ml-5 flex items-start gap-2 rounded-lg border border-st-degraded/25 bg-st-degraded/[0.07] px-2.5 py-1.5 text-[12.5px] leading-relaxed text-st-degraded">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           <span className="min-w-0 break-words">
             {warning}
@@ -168,7 +168,7 @@ export function ServiceCard({ service, density, onOpen, onRunAction }: ServiceCa
         )}
       >
         <ActionRow service={service} onRun={(action) => onRunAction(service, action)} compact={compact} />
-        <div className="flex shrink-0 items-center gap-2 text-[10.5px] text-faint">
+        <div className="flex shrink-0 items-center gap-2 text-[11.5px] text-faint">
           {service.lastAction && (
             <span
               title={`${service.lastAction.label}: ${service.lastAction.message}`}

@@ -136,7 +136,7 @@ export function ServiceDrawer({
                         onClick={() => setTab(id)}
                         title={disabled ? 'This provider exposes no logs' : undefined}
                         className={clsx(
-                          'relative flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-medium transition-colors',
+                          'relative flex items-center gap-1.5 px-3 py-2.5 text-[13.5px] font-medium transition-colors',
                           disabled && 'cursor-not-allowed opacity-35',
                           tab === id ? 'text-signal' : 'text-muted hover:text-ink',
                         )}
@@ -171,7 +171,7 @@ export function ServiceDrawer({
                     inlineLimit={12}
                     onRun={(action) => onRunAction(service, action)}
                   />
-                  <span className="text-[10.5px] text-faint">
+                  <span className="text-[11.5px] text-faint">
                     checked {service.checking ? 'now' : formatAgo(service.lastCheckedAt)}
                   </span>
                 </footer>
@@ -242,7 +242,7 @@ function DrawerHeader({
               </>
             )}
           </p>
-          {service.description && <p className="mt-2 text-[12.5px] leading-relaxed text-ink-2">{service.description}</p>}
+          {service.description && <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{service.description}</p>}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
@@ -271,7 +271,7 @@ function DrawerHeader({
           <StatusIndicator state={service.state} size={10} />
           <span className="font-medium">{service.busy.label}</span>
           <span className="text-signal/70">running since {formatClock(service.busy.startedAt)}</span>
-          <span className="ml-auto text-[10.5px] text-signal/60">other actions are locked</span>
+          <span className="ml-auto text-[11.5px] text-signal/60">other actions are locked</span>
         </div>
       )}
     </header>
@@ -285,7 +285,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
     <div className="h-full overflow-auto p-4">
       {(service.statusSummary || service.statusDetail) && (
         <section className="mb-4 rounded-xl border border-line-soft bg-surface-2/40 p-3">
-          <p className="text-[12.5px] text-ink">{service.statusSummary ?? stateStyle(service.state).hint}</p>
+          <p className="text-[13.5px] text-ink">{service.statusSummary ?? stateStyle(service.state).hint}</p>
           {service.statusDetail && <p className="mono mt-1.5 text-faint">{service.statusDetail}</p>}
         </section>
       )}
@@ -322,7 +322,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
                 key={metric.label}
                 className="flex items-baseline justify-between gap-3 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-1.5"
               >
-                <dt className="shrink-0 text-[11.5px] text-muted">{metric.label}</dt>
+                <dt className="shrink-0 text-[12.5px] text-muted">{metric.label}</dt>
                 <dd
                   className={clsx(
                     'num min-w-0 truncate text-right text-[13px] font-medium',
@@ -401,7 +401,7 @@ function ChildRow({ child }: { child: ChildStatus }) {
     <li className="flex items-center gap-2.5 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-2">
       <StatusIndicator state={child.state} size={10} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[12.5px] font-medium text-ink">{child.name}</p>
+        <p className="truncate text-[13.5px] font-medium text-ink">{child.name}</p>
         <p className="mono truncate text-faint">
           {child.stateLabel ?? style.label}
           {child.image && ` · ${child.image}`}
@@ -410,7 +410,7 @@ function ChildRow({ child }: { child: ChildStatus }) {
       {child.health && child.health !== 'none' && (
         <span
           className={clsx(
-            'rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium',
+            'rounded-md border px-1.5 py-0.5 text-[11.5px] font-medium',
             child.health === 'healthy' && 'border-st-running/30 bg-st-running/10 text-st-running',
             child.health === 'unhealthy' && 'border-st-failed/30 bg-st-failed/10 text-st-failed',
             child.health === 'starting' && 'border-st-starting/30 bg-st-starting/10 text-st-starting',
@@ -420,7 +420,7 @@ function ChildRow({ child }: { child: ChildStatus }) {
         </span>
       )}
       {child.ports && child.ports.length > 0 && (
-        <span className="num hidden shrink-0 gap-1 text-[10.5px] text-route sm:flex">
+        <span className="num hidden shrink-0 gap-1 text-[11.5px] text-route sm:flex">
           {child.ports.slice(0, 2).map((port) => port.hostPort ?? port.port).join(', ')}
         </span>
       )}
@@ -453,10 +453,10 @@ function HistoryTab({ service }: { service: ServiceDetail }) {
                 record.ok ? 'bg-st-running' : 'bg-st-failed',
               )}
             />
-            <span className="text-[12.5px] font-medium text-ink">{record.label}</span>
+            <span className="text-[13.5px] font-medium text-ink">{record.label}</span>
             <span className="min-w-0 flex-1 truncate text-[13px] text-muted">{record.message}</span>
-            <span className="num shrink-0 text-[10.5px] text-faint">{formatDuration(record.durationMs)}</span>
-            <span className="num shrink-0 text-[10.5px] text-faint">{formatClock(record.startedAt)}</span>
+            <span className="num shrink-0 text-[11.5px] text-faint">{formatDuration(record.durationMs)}</span>
+            <span className="num shrink-0 text-[11.5px] text-faint">{formatClock(record.startedAt)}</span>
           </summary>
           <div className="space-y-2 border-t border-line-soft px-3 py-2.5">
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-faint">
@@ -502,7 +502,7 @@ function ConfigTab({ service }: { service: ServiceDetail }) {
 
       {service.envKeys.length > 0 && (
         <Section title="Environment" icon={FolderOpen}>
-          <p className="mb-2 text-[11.5px] text-faint">
+          <p className="mb-2 text-[12.5px] text-faint">
             Values are never sent to the browser — only the variable names.
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -591,7 +591,7 @@ function Section({
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-line-soft/60 pb-1 last:border-0">
-      <dt className="shrink-0 text-[11.5px] text-muted">{label}</dt>
+      <dt className="shrink-0 text-[12.5px] text-muted">{label}</dt>
       <dd className={clsx('min-w-0 break-all text-right text-[13px] text-ink', mono && 'mono')}>{value}</dd>
     </div>
   );

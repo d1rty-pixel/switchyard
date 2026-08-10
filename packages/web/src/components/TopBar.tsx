@@ -46,7 +46,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
           <Logo className="size-9" />
           <div className="leading-tight">
             <Wordmark className="text-[16px]" />
-            <p className="text-[10.5px] text-faint" title={configPath}>
+            <p className="text-[11.5px] text-faint" title={configPath}>
               {version ? `v${version}` : 'local control panel'}
             </p>
           </div>
@@ -82,7 +82,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
 
         <div className="order-2 ml-auto flex items-center gap-3 sm:order-3">
           <div className="hidden w-40 flex-col gap-1 md:flex">
-            <div className="flex items-baseline justify-between text-[10.5px] text-faint">
+            <div className="flex items-baseline justify-between text-[11.5px] text-faint">
               <span className="num">
                 <span className="font-semibold text-ink">{running}</span>/{total} up
               </span>
