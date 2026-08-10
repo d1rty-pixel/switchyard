@@ -68,6 +68,14 @@ export interface ActionRowProps {
   compact?: boolean;
   /** False keeps the row on one line — table cells size to their content. */
   wrap?: boolean;
+  /**
+   * Sort the actions that apply to the current state to the front, so the few
+   * inline slots hold usable buttons rather than greyed-out ones. Worth it
+   * where the slots are scarce (the table's single slot shows "Start" for a
+   * running service otherwise) and not where they are not: on a card the full
+   * set is visible anyway, and buttons that stay put are easier to aim at.
+   */
+  prioritiseEnabled?: boolean;
 }
 
 /**
@@ -82,9 +90,19 @@ export function ActionRow({
   onRun,
   compact,
   wrap = true,
+  prioritiseEnabled = false,
 }: ActionRowProps) {
   const busy = service.busy ?? null;
-  const candidates = service.actions.filter((action) => inlineKinds.includes(action.kind));
+  const applies = (action: ActionDescriptor) => !action.enabledIn || action.enabledIn.includes(service.state);
+  const matching = service.actions.filter((action) => inlineKinds.includes(action.kind));
+  // Stable sort, so actions that apply keep their configured order among
+  // themselves and merely move ahead of the ones that do not. While an action
+  // runs everything is locked anyway, and reordering under the pointer would be
+  // worse than a stale order.
+  const candidates =
+    prioritiseEnabled && !busy
+      ? [...matching].sort((a, b) => Number(applies(b)) - Number(applies(a)))
+      : matching;
   // The overflow trigger occupies a slot of its own, so give up one inline
   // button whenever it will be rendered — otherwise the footer wraps to a
   // second line just to hold a lone "…".
@@ -104,9 +122,7 @@ export function ActionRow({
 
   const reasonFor = (action: ActionDescriptor): string | undefined => {
     if (busy) return `${busy.label} is running`;
-    if (action.enabledIn && !action.enabledIn.includes(service.state)) {
-      return `Only available while ${action.enabledIn.join(', ')}`;
-    }
+    if (!applies(action)) return `Only available while ${action.enabledIn!.join(', ')}`;
     return undefined;
   };
 
