@@ -20,6 +20,7 @@ curl -X POST http://127.0.0.1:7878/api/reload
 | `21-systemd-user.yaml` | `systemd` | a user unit — no sudo, no polkit |
 | `30-compose-stack.yaml` | `compose` | a single compose file, the common action set |
 | `31-compose-overlays.yaml` | `compose` | multiple files, profiles, `--env-file`, `destroy`, long timeouts |
+| `32-traefik-portainer.yaml` | `compose` | a reverse-proxy edge: published host ports, primary URL, confirmations |
 | `40-docker-container.yaml` | `docker` | a standalone container, every option, `enabled: false` |
 
 The two files marked "as-is" need no path editing at all: once copied into

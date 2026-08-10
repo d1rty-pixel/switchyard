@@ -1,0 +1,44 @@
+# A Traefik reverse proxy with Portainer behind it — the usual local
+# development edge, managed as one Compose project.
+#
+# The pattern is worth showing because it is the case where the aggregate status
+# of a Compose project matters most: Traefik publishes :80 and :443 on the host,
+# and those bindings fail silently when another web server already holds them.
+# The compose provider flags exactly that — a container up *without* its
+# published ports is reported as degraded rather than running.
+#
+# Certificates are out of scope for Switchyard. Issue them with mkcert (or any
+# other local CA), point Traefik's file provider at them, and keep the matching
+# /etc/hosts entries in place; the stack below only bind-mounts the result.
+
+id: local-edge
+name: Local edge
+description: Traefik reverse proxy with Portainer behind it
+icon: globe
+type: compose
+group: web
+tags: [traefik, portainer, compose, example]
+enabled: true
+workdir: /srv/local-edge
+
+ports:
+  - port: 80
+    label: http
+  - port: 443
+    label: https
+
+urls:
+  - label: Portainer
+    url: https://portainer.test/
+    primary: true
+
+# Taking the edge down takes every site behind it with it.
+confirm: [down, stop, recreate]
+
+provider:
+  file: /srv/local-edge/docker-compose.yml
+  projectDir: /srv/local-edge
+  projectName: local-edge
+  actions: [up, down, restart, stop, start, pull, recreate]
+  # Pulling the traefik and portainer images on a cold cache takes a while.
+  slowTimeoutMs: 300000

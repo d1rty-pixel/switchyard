@@ -332,4 +332,4 @@ here.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
