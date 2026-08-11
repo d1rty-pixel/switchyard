@@ -13,7 +13,7 @@ scripts — each with its own control mechanism, all on one screen.
 
 ---
 
-Switchyard is not a Docker UI. It assumes your local services are *unalike*: one
+Switchyard treats each local service as its own thing: one
 is an nginx with a custom prefix, one is a Compose project spread over two files,
 one is a Perl app under hypnotoad, one is a shell script with a pid file. Each
 service declares which provider drives it and which actions exist; the dashboard
@@ -120,9 +120,9 @@ provider: { ... }              # provider-specific, see below
 ```
 
 **`enabled: false`** is the switch to reach for when you want a service out of the
-way without deleting its file: it is not polled, not listed and not reachable
-through the API. The dashboard shows a collapsed "N disabled services" strip at
-the bottom so they stay findable.
+way without deleting its file: the service is skipped entirely — no polling, no
+listing, no API access. The dashboard shows a collapsed "N disabled services"
+strip at the bottom so they stay findable.
 
 After editing anything, press **Reload config** in the UI (or
 `curl -X POST http://127.0.0.1:7878/api/reload`). No restart, no page reload.
@@ -137,7 +137,7 @@ run: [nginx, -c, /home/me/proxy/nginx.conf, -s, reload]   # correct
 run: 'nginx -c /home/me/proxy/nginx.conf -s reload'       # rejected
 ```
 
-`~` is not expanded either — write absolute paths.
+Paths are used exactly as written, including `~` — write absolute paths.
 
 ## Providers
 
@@ -340,8 +340,8 @@ run immediately after copying, with no privileges and no path editing.
 ## Scope
 
 A personal tool for one workstation. No Kubernetes, no queues, no RBAC, no plugin
-marketplace, no database. If a feature would need any of those, it does not belong
-here.
+marketplace, no database. A feature earns a place here only if it works without
+any of those.
 
 ## License
 

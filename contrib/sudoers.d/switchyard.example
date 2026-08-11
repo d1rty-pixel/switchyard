@@ -7,7 +7,8 @@
 #
 # Rules of thumb:
 #   * name the exact unit — never `systemctl *`;
-#   * list only the verbs you want; `stop` on a database is not `reload` on a proxy;
+#   * list only the verbs you want; weigh each one's actual risk, e.g. `stop` on
+#     a database against `reload` on a proxy;
 #   * always use absolute paths, so PATH cannot shadow the binary;
 #   * one line per service keeps the audit trail readable.
 #

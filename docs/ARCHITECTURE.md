@@ -74,9 +74,9 @@ An action:
 6. The response carries the outcome *and* the fresh service summary, so the card
    updates in one round trip.
 
-Failed commands are **not** HTTP errors: `{ ok: false, message, output }` with
-status 200. Only protocol-level problems (unknown service, unknown action,
-conflict, unsupported capability) use 4xx.
+Failed commands return `{ ok: false, message, output }` with HTTP status 200.
+Only protocol-level problems (unknown service, unknown action, conflict,
+unsupported capability) use 4xx.
 
 ## Modules
 
@@ -122,12 +122,11 @@ packages/web/src
 systemd-specific code. Adding a provider therefore needs no frontend change.
 
 **Capability tables double as authorisation.** `provider.actions()` is the only
-source of dispatchable actions. There is no "run this command" endpoint to
-protect, because it does not exist.
+source of dispatchable actions: every request is checked against it, so the
+table doubles as the access-control list.
 
-**Status is a projection, not a database row.** Every card is rebuilt from the
-last probe plus the busy flag. A restart of the server loses history and nothing
-else.
+**Status is a live projection.** Every card is rebuilt from the last probe plus
+the busy flag. A restart of the server loses history and nothing else.
 
 **Animation belongs in CSS, and stops when the tab is hidden.** This is a tool
 that lives on a second monitor, so it spends most of its life in a background

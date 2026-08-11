@@ -1,8 +1,8 @@
 # Privileges and trust boundaries
 
 Switchyard is a local control panel that executes preconfigured commands. This
-document states exactly what it trusts, what it never does, and which privileges
-each provider needs.
+document states exactly what it trusts, its execution guarantees, and which
+privileges each provider needs.
 
 ## Trust model in one paragraph
 
@@ -82,9 +82,10 @@ youruser ALL=(root) NOPASSWD: /usr/bin/systemctl start chrony.service, \
 
 Rules to follow when writing these:
 
-* name the **exact** unit; never `systemctl *` or `systemctl restart *`;
-* list only the verbs you actually want (`stop` on a database is not the same
-  risk as `reload` on a proxy);
+* name the **exact** unit — always the literal unit name, never `systemctl *`
+  or `systemctl restart *`;
+* list only the verbs you actually want: weigh each one's actual risk, e.g.
+  `stop` on a database against `reload` on a proxy;
 * use the absolute path to `systemctl` — a relative name can be shadowed by
   `PATH`;
 * validate with `sudo -l` and `visudo -c` before relying on it.
@@ -101,8 +102,8 @@ Talking to the Docker daemon means one of:
    Nothing extra to grant.
 2. **Membership in the `docker` group** — convenient and the common setup, but be
    clear about what it means: the docker group is *root-equivalent*, because you
-   can start a container that mounts `/` and runs privileged. Switchyard does not
-   change that; it just uses the access you already have.
+   can start a container that mounts `/` and runs privileged. Switchyard operates
+   entirely within that existing access.
 3. `sudo docker …` — possible via `dockerPath`, but a `sudo` rule for `docker`
    grants everything anyway, so it buys nothing over group membership.
 
