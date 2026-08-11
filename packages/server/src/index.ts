@@ -1,4 +1,5 @@
 import { isIPv4, isIPv6 } from 'node:net';
+import { dirname, resolve } from 'node:path';
 import { createApp } from './app.js';
 import { loadConfig } from './config/load.js';
 import { ConfigError } from './core/errors.js';
@@ -127,8 +128,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Lives next to the config file, in the same `.state/` directory the
+  // bundled examples already use for their own runtime files.
+  const historyPath = resolve(dirname(config.path), '.state', 'history.jsonl');
+
   const bus = new EventBus();
-  const manager = new ServiceManager(config, bus);
+  const manager = new ServiceManager(config, bus, historyPath);
   const app = await createApp({ manager, bus, version: VERSION, configPathOverride: cli.config });
 
   // A non-loopback --host (e.g. the docker0 bridge, from

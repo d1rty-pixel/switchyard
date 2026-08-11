@@ -91,6 +91,7 @@ packages/server/src
 ├── core/
 │   ├── exec.ts           the single spawn() choke point
 │   ├── manager.ts        registry, status cache, polling, locking, history
+│   ├── history-store.ts  append-only action history log, replayed on boot
 │   ├── events.ts         typed event bus behind the SSE endpoint
 │   ├── views.ts          wire projections + secret redaction
 │   ├── errors.ts         SwitchyardError → HTTP status + code
@@ -126,7 +127,9 @@ source of dispatchable actions: every request is checked against it, so the
 table doubles as the access-control list.
 
 **Status is a live projection.** Every card is rebuilt from the last probe plus
-the busy flag. A restart of the server loses history and nothing else.
+the busy flag; only action history survives a restart, replayed from the
+append-only `.state/history.jsonl` log next to the config file (see
+`core/history-store.ts`).
 
 **Animation belongs in CSS, and stops when the tab is hidden.** This is a tool
 that lives on a second monitor, so it spends most of its life in a background

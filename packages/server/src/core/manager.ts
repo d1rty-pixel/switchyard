@@ -1,5 +1,6 @@
 import { execCommand, trimForWire, type ExecFn, type ExecRequest } from './exec.js';
 import { conflict, notFound, unsupported } from './errors.js';
+import { appendHistory, loadHistory } from './history-store.js';
 import { logger, type Logger } from './logger.js';
 import { childRollup, redact, type ServiceDetail, type ServiceSummary } from './views.js';
 import type { EventBus } from './events.js';
@@ -57,7 +58,12 @@ export class ServiceManager {
   private stopped = false;
   private readonly log: Logger;
 
-  constructor(config: LoadedConfig, private readonly bus: EventBus) {
+  constructor(
+    config: LoadedConfig,
+    private readonly bus: EventBus,
+    /** JSONL file action history is appended to and replayed from on boot. */
+    private readonly historyPath?: string,
+  ) {
     this.config = config;
     this.log = logger.child({ module: 'manager' });
     this.applyConfig(config);
@@ -334,6 +340,8 @@ export class ServiceManager {
     }
     record.busy = null;
 
+    if (this.historyPath) void appendHistory(this.historyPath, id, actionRecord);
+
     log[outcome.ok ? 'info' : 'warn'](
       { ok: outcome.ok, durationMs: actionRecord.durationMs, exitCode: actionRecord.exitCode },
       'action finished',
@@ -372,9 +380,20 @@ export class ServiceManager {
   // ── lifecycle ───────────────────────────────────────────────────────────────
 
   async start(): Promise<void> {
+    await this.restoreHistory();
     await this.refreshAll();
     this.bus.emit({ type: 'ready', at: new Date().toISOString() });
     this.schedule();
+  }
+
+  /** Replays persisted history into the in-memory records once, at boot. */
+  private async restoreHistory(): Promise<void> {
+    if (!this.historyPath) return;
+    const byService = await loadHistory(this.historyPath, this.config.settings.historyLimit);
+    for (const [id, history] of byService) {
+      const record = this.records.get(id);
+      if (record) record.history = history;
+    }
   }
 
   private schedule(): void {
