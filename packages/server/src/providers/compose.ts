@@ -680,5 +680,20 @@ function dockerAccessHint(stderr: string): string | undefined {
   if (/no configuration file provided/i.test(stderr)) {
     return 'no compose file found — set provider.file or provider.projectDir';
   }
+  const port = portConflict(stderr);
+  if (port) {
+    return `port ${port} is already in use by another process on the host — stop whatever's bound to it, or change the published port in the compose file`;
+  }
   return undefined;
+}
+
+/**
+ * Docker's networking-setup failure buries the actual port behind two layers
+ * of wrapper text ("failed to set up container networking: driver failed
+ * programming external connectivity ... Bind for 0.0.0.0:PORT failed: port is
+ * already allocated"). Pull just the port out so the hint above can name it.
+ */
+function portConflict(stderr: string): string | undefined {
+  const match = stderr.match(/Bind for [\d.]+:(\d+) failed: port is already allocated/i);
+  return match?.[1];
 }
