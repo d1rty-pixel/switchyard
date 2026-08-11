@@ -11,8 +11,14 @@
 version: 1
 
 settings:
-  host: 127.0.0.1 # loopback only; binding elsewhere needs allowRemoteBind
+  host: 127.0.0.1 # loopback default; switchyard-manage.sh may override via --host
   port: 7878
+  # Lets switchyard-manage.sh bind to the docker0 bridge IP when it detects
+  # Docker, so containers (e.g. Traefik) can reach it. Still refuses anything
+  # non-loopback unless --host is explicitly passed — this only lifts the
+  # guard, it doesn't widen the default. No auth on this app: anything that
+  # can reach it can control every service it manages.
+  allowRemoteBind: true
   statusIntervalMs: 6000 # background status poll
   commandTimeoutMs: 30000 # default per-command timeout
   logsTail: 200

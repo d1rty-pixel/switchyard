@@ -5,8 +5,9 @@
 #
 #   switchyard-manage.sh start | stop | restart | status | logs [-n N]
 #
-# `start` prints the dashboard URL once the server is up, read from
-# switchyard.yaml (falling back to the documented defaults).
+# `start` and `status` print the dashboard URL, read from the app's own
+# "switchyard ready" log line (falls back to a best-effort guess from
+# switchyard.yaml if the log hasn't caught up yet or is unreadable).
 #
 # Paired with examples/services.d/13-switchyard-self.yaml, which is "as-is":
 # copy it into services.d/ and it manages the switchyard checkout it lives in,
@@ -24,6 +25,30 @@ log_file="${state_dir}/switchyard.log"
 
 mkdir -p "${state_dir}"
 
+# --- output -------------------------------------------------------------
+# Colors off for non-tty stdout or when NO_COLOR is set (https://no-color.org).
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  c_reset=$'\033[0m'; c_bold=$'\033[1m'; c_dim=$'\033[2m'
+  c_green=$'\033[32m'; c_red=$'\033[31m'; c_yellow=$'\033[33m'; c_cyan=$'\033[36m'
+else
+  c_reset=''; c_bold=''; c_dim=''; c_green=''; c_red=''; c_yellow=''; c_cyan=''
+fi
+
+ok()    { printf '%s✓%s %s\n' "${c_green}${c_bold}" "${c_reset}" "$*"; }
+err()   { printf '%s✗%s %s\n' "${c_red}${c_bold}" "${c_reset}" "$*" >&2; }
+info()  { printf '%s·%s %s\n' "${c_cyan}" "${c_reset}" "$*"; }
+field() { printf '%s%s:%s %s' "${c_dim}" "$1" "${c_reset}" "$2"; }  # no trailing newline
+
+# Docker's `host-gateway` extra_hosts magic resolves to the docker0 bridge's
+# own IP, not a container's own network gateway — so that's the address we
+# have to bind to for a container reaching us via host.docker.internal to
+# land here. Prints nothing (and the caller falls back to loopback) if Docker
+# isn't running or docker0 doesn't exist yet.
+detect_docker_bridge_ip() {
+  command -v ip >/dev/null 2>&1 || return 0
+  ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1
+}
+
 read_pid() {
   [[ -f "${pid_file}" ]] || return 1
   local pid
@@ -38,11 +63,29 @@ is_running() {
   kill -0 "${pid}" 2>/dev/null
 }
 
-# Best-effort read of settings.host/settings.port from switchyard.yaml, for the
-# "started, open it here" message. Defaults match the documented ones in
+# H:MM:SS (or D-H:MM:SS) the process has been up, empty if it isn't.
+process_uptime() {
+  local pid="$1"
+  ps -o etime= -p "${pid}" 2>/dev/null | tr -d ' '
+}
+
+# Pulls the URL straight from the app's own "switchyard ready" log line —
+# authoritative, since it reflects whatever it actually bound to (loopback or
+# the docker-bridge override). Empty if jq is missing, the log has no such
+# line yet, or the log file doesn't exist.
+logged_url() {
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -f "${log_file}" ]] || return 0
+  grep '"msg":"switchyard ready"' "${log_file}" 2>/dev/null \
+    | tail -n1 \
+    | jq -r '.url // empty' 2>/dev/null
+}
+
+# Best-effort read of settings.host/settings.port from switchyard.yaml, for
+# when logged_url() came up empty. Defaults match the documented ones in
 # README.md — good enough for a status line, not a substitute for the app's
 # own config loading.
-dashboard_url() {
+guessed_url() {
   local config="${SWITCHYARD_CONFIG:-${root}/switchyard.yaml}"
   local host="127.0.0.1" port=7878
   if [[ -f "${config}" ]]; then
@@ -55,30 +98,48 @@ dashboard_url() {
   printf 'http://%s:%s/' "${host}" "${port}"
 }
 
+# Prints the URL, preferring the confirmed one; marks a guess as such.
+dashboard_url() {
+  local url
+  url="$(logged_url)"
+  if [[ -n "${url}" ]]; then
+    printf '%s' "${url}"
+  else
+    printf '%s%s (unconfirmed)' "$(guessed_url)" "${c_dim}${c_reset}"
+  fi
+}
+
 do_start() {
   if is_running; then
-    echo "already running (pid $(read_pid))"
+    info "already running (pid ${c_bold}$(read_pid)${c_reset})"
     return 0
   fi
   rm -f "${pid_file}"
   cd "${root}"
-  setsid node packages/server/dist/index.js >>"${log_file}" 2>&1 </dev/null &
+  local -a bind_args=()
+  local docker_ip
+  docker_ip="$(detect_docker_bridge_ip)"
+  if [[ -n "${docker_ip}" ]]; then
+    bind_args=(--host "${docker_ip}")
+    info "docker detected · binding to ${c_bold}${docker_ip}${c_reset} instead of loopback"
+  fi
+  setsid node packages/server/dist/index.js "${bind_args[@]}" >>"${log_file}" 2>&1 </dev/null &
   echo "$!" >"${pid_file}"
   disown || true
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     if is_running; then
-      echo "started (pid $(read_pid)) · $(dashboard_url)"
+      ok "started · $(field pid "${c_bold}$(read_pid)${c_reset}")  $(field url "${c_cyan}$(dashboard_url)${c_reset}")"
       return 0
     fi
     sleep 0.2
   done
-  echo "switchyard did not come up; see ${log_file}" >&2
+  err "switchyard did not come up; see ${log_file}"
   return 1
 }
 
 do_stop() {
   if ! is_running; then
-    echo "not running"
+    info "not running"
     rm -f "${pid_file}"
     return 0
   fi
@@ -94,15 +155,18 @@ do_stop() {
     sleep 0.2
   fi
   rm -f "${pid_file}"
-  echo "stopped (was pid ${pid})"
+  ok "stopped (was pid ${c_bold}${pid}${c_reset})"
 }
 
 do_status() {
   if is_running; then
-    echo "switchyard running · pid $(read_pid)"
+    local pid uptime
+    pid="$(read_pid)"
+    uptime="$(process_uptime "${pid}")"
+    ok "running · $(field pid "${c_bold}${pid}${c_reset}")  $(field uptime "${uptime:-?}")  $(field url "${c_cyan}$(dashboard_url)${c_reset}")"
     return 0
   fi
-  echo "switchyard not running"
+  err "not running"
   return 1
 }
 
@@ -111,7 +175,7 @@ do_logs() {
   if [[ "${1:-}" == "-n" && -n "${2:-}" ]]; then
     lines="$2"
   fi
-  [[ -f "${log_file}" ]] || { echo "no log file yet: ${log_file}"; return 0; }
+  [[ -f "${log_file}" ]] || { info "no log file yet: ${log_file}"; return 0; }
   tail -n "${lines}" "${log_file}"
 }
 
@@ -128,7 +192,7 @@ case "${1:-}" in
     do_logs "$@"
     ;;
   *)
-    echo "usage: $(basename "$0") {start|stop|restart|status|logs [-n N]}" >&2
+    err "usage: $(basename "$0") {start|stop|restart|status|logs [-n N]}"
     exit 2
     ;;
 esac
