@@ -236,7 +236,14 @@ export default function App() {
           <GpuAccelWarning dismissed={gpuWarningDismissed} onDismiss={() => setGpuWarningDismissed(true)} />
         )}
         {meta.data && <ConfigWarnings warnings={meta.data.configWarnings} />}
-        {services.isError && !apiDown && <InlineError message={(services.error as Error).message} />}
+        {/* On a failed first load there's no service list yet, so `all` is
+            empty and NoServicesState below covers the message space —
+            showing this too would be a redundant, more cryptic "500
+            Internal Server Error" next to it. A failed refetch that still
+            has prior data is a real problem worth surfacing here. */}
+        {services.isError && !apiDown && all.length > 0 && (
+          <InlineError message={(services.error as Error).message} />
+        )}
 
         {apiDown && (
           <ApiDownState
