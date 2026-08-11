@@ -131,7 +131,16 @@ async function main(): Promise<void> {
   const manager = new ServiceManager(config, bus);
   const app = await createApp({ manager, bus, version: VERSION, configPathOverride: cli.config });
 
-  await app.listen({ host, port });
+  // A non-loopback --host (e.g. the docker0 bridge, from
+  // switchyard-manage.sh's Docker detection) used to replace the bind
+  // address instead of adding to it — anything talking to the API via
+  // loopback (a browser, the web UI's dev proxy) got connection refused.
+  // Fastify only binds one address per `listen()` call (a second call
+  // throws FST_ERR_REOPENED_SERVER), so bind 0.0.0.0 to cover loopback and
+  // the requested host in one socket; `allowRemoteBind` already gates
+  // whether a non-loopback host is accepted at all, above.
+  const bindHost = isLoopback(host) ? host : '0.0.0.0';
+  await app.listen({ host: bindHost, port });
   logger.info({ url: `http://${host}:${port}`, config: config.path, services: config.services.length }, 'switchyard ready');
 
   void manager.start().catch((error) => logger.error({ err: error }, 'initial status sweep failed'));
