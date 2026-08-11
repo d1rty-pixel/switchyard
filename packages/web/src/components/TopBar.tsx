@@ -104,8 +104,8 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
             aria-pressed={notificationsEnabled}
             title={
               notificationsEnabled
-                ? 'Desktop notifications on for failures — click to turn off'
-                : 'Get a desktop notification when an action fails or a service degrades'
+                ? 'Desktop notifications on for every action and service change — click to turn off'
+                : 'Get a desktop notification when an action finishes or a service goes down'
             }
             className={clsx(
               'rounded-xl border p-1.5 transition-colors',

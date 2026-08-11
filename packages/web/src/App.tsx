@@ -34,13 +34,13 @@ import {
 } from './components/EmptyState';
 import { useToasts } from './components/Toasts';
 import { hasGpuAcceleration } from './lib/gpu';
-import { notify, requestNotificationPermission } from './lib/notify';
+import { notify, notificationsSupported, requestNotificationPermission } from './lib/notify';
 import type { ServiceState } from './lib/types';
 
 const DEFAULT_FILTERS: Filters = { group: null, states: [], types: [], sort: 'group' };
 
 /** States a desktop notification is worth interrupting the user for. */
-const UNHEALTHY_STATES = new Set<ServiceState>(['failed', 'degraded']);
+const UNHEALTHY_STATES = new Set<ServiceState>(['failed', 'degraded', 'stopped']);
 
 export default function App() {
   const client = useQueryClient();
@@ -65,6 +65,16 @@ export default function App() {
   const toggleNotifications = useCallback(() => {
     if (notificationsEnabled) {
       setNotificationsEnabled(false);
+      return;
+    }
+    // An insecure origin can never grant permission, so pointing the user at
+    // Chrome's site settings would send them somewhere with nothing to change.
+    if (!notificationsSupported()) {
+      toasts.push({
+        tone: 'info',
+        title: 'Notifications unavailable',
+        message: 'Desktop notifications need a secure origin — open Switchyard over HTTPS or on localhost.',
+      });
       return;
     }
     void requestNotificationPermission().then((permission) => {
@@ -101,20 +111,39 @@ export default function App() {
       (id: string, record: ActionRecord) => {
         // `action:end` arrives before the POST response, so the key is claimed
         // at dispatch time rather than derived from the record.
-        if (localRuns.current.delete(`${id}:${record.actionId}`)) return;
-        const recovered = retryRecoveries.current.delete(`${id}:${record.actionId}`);
-        const suffix = recovered ? '(reconnected after a dropped connection)' : '(started elsewhere)';
+        const local = localRuns.current.delete(`${id}:${record.actionId}`);
+        // Only consume a recovery key for an action this tab did not already
+        // account for as a local run — the two sets are mutually exclusive.
+        const recovered = !local && retryRecoveries.current.delete(`${id}:${record.actionId}`);
+        const suffix = local
+          ? ''
+          : recovered
+            ? ' (reconnected after a dropped connection)'
+            : ' (started elsewhere)';
+
+        // Desktop notification for *every* finished action, including the ones
+        // this tab started. The toast below deliberately skips local runs
+        // (dispatch already toasted them with full command output), but that
+        // reasoning does not carry over to notifications: the whole point of a
+        // desktop notification is to reach the user once they have looked away
+        // from a start/stop/restart that takes time to finish.
+        if (notificationsEnabled) {
+          notify(
+            `${id} · ${record.label}${record.ok ? '' : ' failed'}`,
+            `${record.message}${suffix}`,
+            `switchyard:action:${id}`,
+          );
+        }
+
+        if (local) return;
         toasts.push({
           // A recovered self-collision is this tab's own result, same as a
           // normal onSuccess/onError — it earns the real success/error tone,
           // not the "info" used for genuinely foreign-triggered changes.
           tone: recovered ? (record.ok ? 'success' : 'error') : record.ok ? 'info' : 'error',
           title: `${id} · ${record.label}`,
-          message: `${record.message} ${suffix}`,
+          message: `${record.message}${suffix}`,
         });
-        if (!record.ok && notificationsEnabled) {
-          notify(`${id} · ${record.label} failed`, `${record.message} ${suffix}`);
-        }
       },
       [toasts, notificationsEnabled],
     ),
@@ -124,7 +153,11 @@ export default function App() {
         const wasUnhealthy = UNHEALTHY_STATES.has(previous.state);
         const isUnhealthy = UNHEALTHY_STATES.has(next.state);
         if (!wasUnhealthy && isUnhealthy) {
-          notify(`${next.name} is ${next.state}`, next.statusSummary ?? 'Check the dashboard for details.');
+          notify(
+            `${next.name} is ${next.state}`,
+            next.statusSummary ?? 'Check the dashboard for details.',
+            `switchyard:state:${next.id}`,
+          );
         }
       },
       [notificationsEnabled],

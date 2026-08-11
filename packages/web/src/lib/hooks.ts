@@ -121,7 +121,17 @@ export function useEventStream(
     };
 
     on('snapshot', (data: { services: ServiceSummary[] }) => {
+      const previous = client.getQueryData<ServiceSummary[]>(keys.services);
       client.setQueryData(keys.services, data.services);
+      // A reconnect replaces the whole list in one frame. Anything that changed
+      // while the stream was down produced no service:update we ever saw, so
+      // without diffing here the notifier silently misses it — and then treats
+      // the new state as the baseline, so it never fires later either.
+      if (!previous) return;
+      const before = new Map(previous.map((entry) => [entry.id, entry]));
+      for (const service of data.services) {
+        stateChangeHandler.current?.(before.get(service.id), service);
+      }
     });
 
     on('service:update', (data: { service: ServiceSummary }) => {
