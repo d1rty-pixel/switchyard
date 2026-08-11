@@ -190,6 +190,11 @@ export function useRefreshService() {
   });
 }
 
+/** Fetches what a reload would change, without applying it. */
+export function useReloadPreview() {
+  return useMutation({ mutationFn: () => api.reloadPreview() });
+}
+
 export function useReloadConfig() {
   const client = useQueryClient();
   return useMutation({

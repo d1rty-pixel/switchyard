@@ -9,6 +9,7 @@ import {
   useMeta,
   usePersistentState,
   useReloadConfig,
+  useReloadPreview,
   useRunAction,
   useServices,
   useStateCounts,
@@ -45,6 +46,7 @@ export default function App() {
   const services = useServices();
   const runAction = useRunAction();
   const reloadConfig = useReloadConfig();
+  const reloadPreview = useReloadPreview();
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounced(search, 120);
@@ -173,6 +175,40 @@ export default function App() {
     [dispatch],
   );
 
+  const applyReload = useCallback(() => {
+    reloadConfig.mutate(undefined, {
+      onSuccess: (result) =>
+        toasts.push({
+          tone: 'info',
+          title: 'Configuration reloaded',
+          message: `${result.services} service(s) from ${result.path}`,
+        }),
+      onError: (error) =>
+        toasts.push({ tone: 'error', title: 'Reload failed', message: (error as ApiError).message }),
+    });
+  }, [reloadConfig, toasts]);
+
+  const requestReload = useCallback(() => {
+    reloadPreview.mutate(undefined, {
+      onSuccess: (preview) => {
+        const { diff } = preview;
+        if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0) {
+          toasts.push({ tone: 'info', title: 'Nothing to reload', message: 'Configuration on disk is unchanged.' });
+          return;
+        }
+        setConfirm({
+          title: 'Reload configuration?',
+          body: `${preview.services} service(s) from ${preview.path}.`,
+          confirmLabel: 'Reload',
+          detail: formatDiff(diff),
+          run: applyReload,
+        });
+      },
+      onError: (error) =>
+        toasts.push({ tone: 'error', title: 'Could not preview reload', message: (error as ApiError).message }),
+    });
+  }, [reloadPreview, toasts, applyReload]);
+
   useHotkeys({
     search: () => searchInput.current?.focus(),
     escape: () => {
@@ -199,21 +235,10 @@ export default function App() {
         onSearch={setSearch}
         view={view}
         onView={setView}
-        reloading={reloadConfig.isPending}
+        reloading={reloadConfig.isPending || reloadPreview.isPending}
         configPath={meta.data?.configPath}
         version={meta.data?.app.version}
-        onReload={() =>
-          reloadConfig.mutate(undefined, {
-            onSuccess: (result) =>
-              toasts.push({
-                tone: 'info',
-                title: 'Configuration reloaded',
-                message: `${result.services} service(s) from ${result.path}`,
-              }),
-            onError: (error) =>
-              toasts.push({ tone: 'error', title: 'Reload failed', message: (error as ApiError).message }),
-          })
-        }
+        onReload={requestReload}
       />
 
       {all.length > 0 && (
@@ -354,6 +379,15 @@ function compare(
       return orderDelta !== 0 ? orderDelta : a.name.localeCompare(b.name);
     }
   }
+}
+
+function formatDiff(diff: { added: string[]; removed: string[]; changed: string[]; unchanged: number }): string {
+  const lines: string[] = [];
+  for (const id of diff.added) lines.push(`+ ${id}`);
+  for (const id of diff.removed) lines.push(`- ${id}`);
+  for (const id of diff.changed) lines.push(`~ ${id}`);
+  if (diff.unchanged > 0) lines.push(`  ${diff.unchanged} unchanged`);
+  return lines.join('\n');
 }
 
 function buildDetails(output?: { argv?: string[]; stdout?: string; stderr?: string; exitCode?: number | null }): string | undefined {

@@ -165,6 +165,20 @@ export interface LogsResponse {
   fetchedAt: string;
 }
 
+export interface ConfigDiff {
+  added: string[];
+  removed: string[];
+  changed: string[];
+  unchanged: number;
+}
+
+export interface ReloadPreview {
+  path: string;
+  services: number;
+  warnings: string[];
+  diff: ConfigDiff;
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown };
 }

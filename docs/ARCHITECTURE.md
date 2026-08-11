@@ -87,7 +87,8 @@ packages/server/src
 ├── types.ts              domain types shared by providers and the API
 ├── config/
 │   ├── schema.ts         zod schemas for switchyard.yaml and services.d/*
-│   └── load.ts           discovery, YAML parsing, per-service files, merge
+│   ├── load.ts           discovery, YAML parsing, per-service files, merge
+│   └── diff.ts           reload preview: service-set diff without applying it
 ├── core/
 │   ├── exec.ts           the single spawn() choke point
 │   ├── manager.ts        registry, status cache, polling, locking, history

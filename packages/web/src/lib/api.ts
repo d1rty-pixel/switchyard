@@ -3,6 +3,7 @@ import type {
   ApiErrorBody,
   LogsResponse,
   MetaResponse,
+  ReloadPreview,
   ServiceDetail,
   ServiceSummary,
 } from './types';
@@ -71,4 +72,5 @@ export const api = {
       `/api/services/${encodeURIComponent(id)}/logs${tail ? `?tail=${tail}` : ''}`,
     ),
   reload: () => request<{ ok: boolean; path: string; services: number }>('/api/reload', { method: 'POST' }),
+  reloadPreview: () => request<ReloadPreview>('/api/reload/preview'),
 };

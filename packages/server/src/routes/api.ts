@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { badRequest } from '../core/errors.js';
+import { diffConfig } from '../config/diff.js';
 import { loadConfig } from '../config/load.js';
 import { idSchema, actionIdSchema } from '../config/schema.js';
 import { listProviders } from '../providers/index.js';
@@ -91,6 +92,14 @@ export async function registerApi(app: FastifyInstance, deps: ApiDeps): Promise<
     const config = await loadConfig(deps.configPathOverride);
     await manager.reload(config);
     return { ok: true, path: config.path, services: config.services.length, warnings: config.warnings };
+  });
+
+  // Parses the config files on disk and reports what would change, without
+  // swapping anything in — lets the UI show a diff before the user commits.
+  app.get('/api/reload/preview', async () => {
+    const next = await loadConfig(deps.configPathOverride);
+    const diff = diffConfig(manager.loadedConfig, next);
+    return { path: next.path, services: next.services.length, warnings: next.warnings, diff };
   });
 
   registerEventStream(app, deps);
