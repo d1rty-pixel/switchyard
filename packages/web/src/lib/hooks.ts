@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { api } from './api';
+import { api, ApiError } from './api';
 import type { ActionRecord, ServiceDetail, ServiceSummary } from './types';
+
+// A container start/stop elsewhere on the host reprograms Docker's iptables
+// rules, which briefly cuts the docker0-bridge path Traefik uses to reach
+// this app (see switchyard-manage.sh's docker-bridge bind). That drops the
+// in-flight request — often *after* it already ran server-side — so one
+// retry is worth the small risk of re-running an already-completed action;
+// start/stop/restart are idempotent, and that covers most real usage.
+function isNetworkError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 0;
+}
 
 export const keys = {
   meta: ['meta'] as const,
@@ -157,6 +167,8 @@ export function useRunAction() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: ({ id, action }: RunActionInput) => api.runAction(id, action),
+    retry: (failureCount, error) => failureCount < 1 && isNetworkError(error),
+    retryDelay: 400,
     onSuccess: (response) => {
       patchService(client, response.service);
       void client.invalidateQueries({ queryKey: keys.service(response.service.id) });
