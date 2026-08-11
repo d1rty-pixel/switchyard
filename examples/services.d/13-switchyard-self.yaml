@@ -1,0 +1,59 @@
+# Switchyard managing itself — the `command` provider driving a hand-written
+# script, applied to Switchyard's own server process.
+#
+# `npm start` runs the server in the foreground, so `scripts/switchyard-manage.sh`
+# detaches it via setsid and tracks it with a pid file, same as
+# 11-worker-script.yaml does for the sample worker.
+#
+# CAUTION: `stop`/`restart` kill the process handling the very request that
+# triggered them. The HTTP response usually still makes it out before the
+# SIGTERM lands, but this is inherently a bit racy — if it ever leaves things
+# stuck, run the script directly: scripts/switchyard-manage.sh restart
+#
+# Works in a fresh clone without editing.
+
+id: switchyard
+name: Switchyard
+description: Switchyard's own server process (self-managed)
+icon: settings
+type: command
+group: infrastructure
+tags: [switchyard, self]
+enabled: true
+workdir: ..
+
+urls:
+  - label: Dashboard
+    url: http://127.0.0.1:7878/
+    primary: true
+
+provider:
+  status:
+    run: [scripts/switchyard-manage.sh, status]
+    interpret: exit
+    successState: running
+    failureState: stopped
+    useStdoutAsSummary: true
+  pidFile: .state/switchyard.pid
+  logs:
+    run: [scripts/switchyard-manage.sh, logs]
+    tailArg: -n
+    source: .state/switchyard.log
+  actions:
+    - id: start
+      label: Start
+      kind: primary
+      run: [scripts/switchyard-manage.sh, start]
+      enabledIn: [stopped, failed, unknown]
+    - id: stop
+      label: Stop
+      kind: danger
+      confirm: true
+      description: stops the process serving this dashboard
+      run: [scripts/switchyard-manage.sh, stop]
+      enabledIn: [running, degraded]
+    - id: restart
+      label: Restart
+      kind: secondary
+      confirm: true
+      run: [scripts/switchyard-manage.sh, restart]

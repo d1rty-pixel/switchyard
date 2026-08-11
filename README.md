@@ -57,6 +57,22 @@ Development, with hot reload on both halves:
 npm run dev            # API on :7878 (tsx watch), UI on :5273 (Vite proxy)
 ```
 
+Running detached (background, survives closing the terminal), stopping, and
+checking status:
+
+```bash
+scripts/switchyard-manage.sh start     # prints the dashboard URL once it's up
+scripts/switchyard-manage.sh status
+scripts/switchyard-manage.sh stop
+scripts/switchyard-manage.sh restart
+scripts/switchyard-manage.sh logs -n 100
+```
+
+This detaches the server with `setsid` and tracks it via a pid file under
+`.state/` — see the script's header comment for how. Copy
+`examples/services.d/13-switchyard-self.yaml` into `services.d/` to also drive
+these same actions from the dashboard itself.
+
 Validate the configuration without starting anything:
 
 ```bash
