@@ -37,6 +37,12 @@ const dockerConfigSchema = z
     confirm: z.array(z.enum(DOCKER_ACTIONS)).default([]),
     /** Seconds Docker waits for a graceful stop before killing the container. */
     stopTimeoutSec: z.number().int().min(0).max(600).optional(),
+    /**
+     * Exit codes to treat as a clean stop rather than a failure. Some images
+     * (Portainer among them) don't trap SIGTERM and exit non-zero on a normal
+     * `docker stop` — without this, that reads as "failed" forever.
+     */
+    acceptedExitCodes: z.array(z.number().int()).default([]),
   })
   .strict();
 
@@ -165,7 +171,7 @@ export const dockerProvider: Provider<DockerConfig> = {
     }
 
     const health = normaliseHealth(inspected.health);
-    const state = mapState(inspected.status, inspected.exitCode, health);
+    const state = mapState(inspected.status, inspected.exitCode, health, config.acceptedExitCodes);
     const warnings: string[] = [];
     const metrics: Metric[] = [];
 
@@ -185,7 +191,7 @@ export const dockerProvider: Provider<DockerConfig> = {
       metrics.push({ label: 'Restarts', value: String(inspected.restartCount), kind: 'number', tone: 'warn' });
       warnings.push(`container has restarted ${inspected.restartCount} time(s)`);
     }
-    if (state !== 'running' && typeof inspected.exitCode === 'number' && inspected.exitCode !== 0) {
+    if (state === 'failed' && typeof inspected.exitCode === 'number' && inspected.exitCode !== 0) {
       metrics.push({ label: 'Exit code', value: String(inspected.exitCode), kind: 'number', tone: 'bad' });
       warnings.push(`last exit code ${inspected.exitCode}`);
     }
@@ -267,7 +273,12 @@ export const dockerProvider: Provider<DockerConfig> = {
   },
 };
 
-function mapState(status: string | undefined, exitCode: number | undefined, health: string): ServiceState {
+function mapState(
+  status: string | undefined,
+  exitCode: number | undefined,
+  health: string,
+  acceptedExitCodes: number[] = [],
+): ServiceState {
   switch (status) {
     case 'running':
       return health === 'unhealthy' ? 'degraded' : health === 'starting' ? 'starting' : 'running';
@@ -281,7 +292,8 @@ function mapState(status: string | undefined, exitCode: number | undefined, heal
     case 'dead':
       return 'failed';
     case 'exited':
-      return typeof exitCode === 'number' && exitCode !== 0 ? 'failed' : 'stopped';
+      if (typeof exitCode !== 'number' || exitCode === 0) return 'stopped';
+      return acceptedExitCodes.includes(exitCode) ? 'stopped' : 'failed';
     default:
       return 'unknown';
   }
