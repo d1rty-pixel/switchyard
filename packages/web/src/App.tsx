@@ -34,8 +34,13 @@ import {
 } from './components/EmptyState';
 import { useToasts } from './components/Toasts';
 import { hasGpuAcceleration } from './lib/gpu';
+import { notify, requestNotificationPermission } from './lib/notify';
+import type { ServiceState } from './lib/types';
 
 const DEFAULT_FILTERS: Filters = { group: null, states: [], types: [], sort: 'group' };
+
+/** States a desktop notification is worth interrupting the user for. */
+const UNHEALTHY_STATES = new Set<ServiceState>(['failed', 'degraded']);
 
 export default function App() {
   const client = useQueryClient();
@@ -55,6 +60,18 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<(ConfirmRequest & { run: () => void }) | null>(null);
   const [gpuWarningDismissed, setGpuWarningDismissed] = usePersistentState('gpuWarningDismissed', false);
+  const [notificationsEnabled, setNotificationsEnabled] = usePersistentState('notificationsEnabled', false);
+
+  const toggleNotifications = useCallback(() => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      return;
+    }
+    void requestNotificationPermission().then((permission) => {
+      if (permission === 'granted') setNotificationsEnabled(true);
+      else toasts.push({ tone: 'info', title: 'Notifications blocked', message: 'Allow notifications for this site to enable them.' });
+    });
+  }, [notificationsEnabled, setNotificationsEnabled, toasts]);
 
   // Keeps relative timestamps honest. Every 20 s, not every second: the labels
   // are coarse (see formatAgo), and re-rendering the grid once a second made the
@@ -76,8 +93,22 @@ export default function App() {
           title: `${id} · ${record.label}`,
           message: `${record.message} (started elsewhere)`,
         });
+        if (!record.ok && notificationsEnabled) {
+          notify(`${id} · ${record.label} failed`, `${record.message} (started elsewhere)`);
+        }
       },
-      [toasts],
+      [toasts, notificationsEnabled],
+    ),
+    useCallback(
+      (previous: ServiceSummary | undefined, next: ServiceSummary) => {
+        if (!notificationsEnabled || !previous) return;
+        const wasUnhealthy = UNHEALTHY_STATES.has(previous.state);
+        const isUnhealthy = UNHEALTHY_STATES.has(next.state);
+        if (!wasUnhealthy && isUnhealthy) {
+          notify(`${next.name} is ${next.state}`, next.statusSummary ?? 'Check the dashboard for details.');
+        }
+      },
+      [notificationsEnabled],
     ),
   );
 
@@ -239,6 +270,8 @@ export default function App() {
         configPath={meta.data?.configPath}
         version={meta.data?.app.version}
         onReload={requestReload}
+        notificationsEnabled={notificationsEnabled}
+        onToggleNotifications={toggleNotifications}
       />
 
       {all.length > 0 && (

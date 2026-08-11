@@ -81,11 +81,16 @@ export interface StreamState {
  * Subscribes to `/api/events` and keeps the React Query cache in sync.
  * `onAction` fires for every finished action, including ones started elsewhere.
  */
-export function useEventStream(onAction?: (id: string, record: ActionRecord) => void): StreamState {
+export function useEventStream(
+  onAction?: (id: string, record: ActionRecord) => void,
+  onStateChange?: (previous: ServiceSummary | undefined, next: ServiceSummary) => void,
+): StreamState {
   const client = useQueryClient();
   const [state, setState] = useState<StreamState>({ connected: false, lastEventAt: null, reconnects: 0 });
   const actionHandler = useRef(onAction);
   actionHandler.current = onAction;
+  const stateChangeHandler = useRef(onStateChange);
+  stateChangeHandler.current = onStateChange;
 
   useEffect(() => {
     const source = new EventSource('/api/events');
@@ -120,7 +125,11 @@ export function useEventStream(onAction?: (id: string, record: ActionRecord) => 
     });
 
     on('service:update', (data: { service: ServiceSummary }) => {
+      const previous = client
+        .getQueryData<ServiceSummary[]>(keys.services)
+        ?.find((entry) => entry.id === data.service.id);
       patchService(client, data.service);
+      stateChangeHandler.current?.(previous, data.service);
     });
 
     on('service:checked', (data: { id: string; checkedAt: string }) => {

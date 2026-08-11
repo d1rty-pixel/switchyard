@@ -1,4 +1,4 @@
-import { LayoutGrid, Loader2, RadioTower, RefreshCw, Search, Table2, X } from 'lucide-react';
+import { Bell, BellOff, LayoutGrid, Loader2, RadioTower, RefreshCw, Search, Table2, X } from 'lucide-react';
 import clsx from 'clsx';
 import { forwardRef } from 'react';
 import { Logo, Wordmark } from './Logo';
@@ -19,6 +19,8 @@ export interface TopBarProps {
   reloading: boolean;
   configPath?: string;
   version?: string;
+  notificationsEnabled: boolean;
+  onToggleNotifications: () => void;
 }
 
 export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
@@ -34,6 +36,8 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
     reloading,
     configPath,
     version,
+    notificationsEnabled,
+    onToggleNotifications,
   },
   searchRef,
 ) {
@@ -93,6 +97,25 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
           </div>
 
           <StreamIndicator stream={stream} />
+
+          <button
+            type="button"
+            onClick={onToggleNotifications}
+            aria-pressed={notificationsEnabled}
+            title={
+              notificationsEnabled
+                ? 'Desktop notifications on for failures — click to turn off'
+                : 'Get a desktop notification when an action fails or a service degrades'
+            }
+            className={clsx(
+              'rounded-xl border p-1.5 transition-colors',
+              notificationsEnabled
+                ? 'border-signal/35 bg-signal/12 text-signal'
+                : 'border-line bg-surface/60 text-muted hover:text-ink',
+            )}
+          >
+            {notificationsEnabled ? <Bell className="size-3.5" /> : <BellOff className="size-3.5" />}
+          </button>
 
           <div className="flex items-center rounded-xl border border-line bg-surface/60 p-0.5">
             <IconButton active={view === 'cards'} onClick={() => onView('cards')} label="Card view">
