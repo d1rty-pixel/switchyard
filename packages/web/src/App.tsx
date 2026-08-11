@@ -82,19 +82,38 @@ export default function App() {
   // already produced a toast with full command output.
   const localRuns = useRef(new Set<string>());
 
+  // Actions where our own mutate() failed on a self-collision (see
+  // isSelfCollision) — the request that actually started the action was lost
+  // to a dropped connection, so no local success/error toast was shown. The
+  // action:end event below still needs to report the real outcome; this set
+  // just tells it not to blame that outcome on "started elsewhere".
+  const retryRecoveries = useRef(new Set<string>());
+
+  // Services with an action in flight from this tab. `service.busy` (server-
+  // pushed) is the source of truth for disabling buttons, but it only updates
+  // once the action:start event round-trips — a fast repeat click in that gap
+  // reaches the server and bounces off its per-service lock as a genuine-looking
+  // but self-inflicted "already running" conflict. Block repeats locally too.
+  const pendingServices = useRef(new Set<string>());
+
   const stream = useEventStream(
     useCallback(
       (id: string, record: ActionRecord) => {
         // `action:end` arrives before the POST response, so the key is claimed
         // at dispatch time rather than derived from the record.
         if (localRuns.current.delete(`${id}:${record.actionId}`)) return;
+        const recovered = retryRecoveries.current.delete(`${id}:${record.actionId}`);
+        const suffix = recovered ? '(reconnected after a dropped connection)' : '(started elsewhere)';
         toasts.push({
-          tone: record.ok ? 'info' : 'error',
+          // A recovered self-collision is this tab's own result, same as a
+          // normal onSuccess/onError — it earns the real success/error tone,
+          // not the "info" used for genuinely foreign-triggered changes.
+          tone: recovered ? (record.ok ? 'success' : 'error') : record.ok ? 'info' : 'error',
           title: `${id} · ${record.label}`,
-          message: `${record.message} (started elsewhere)`,
+          message: `${record.message} ${suffix}`,
         });
         if (!record.ok && notificationsEnabled) {
-          notify(`${id} · ${record.label} failed`, `${record.message} (started elsewhere)`);
+          notify(`${id} · ${record.label} failed`, `${record.message} ${suffix}`);
         }
       },
       [toasts, notificationsEnabled],
@@ -155,11 +174,20 @@ export default function App() {
 
   const dispatch = useCallback(
     (service: ServiceSummary, action: ActionDescriptor) => {
+      if (pendingServices.current.has(service.id)) return;
+      pendingServices.current.add(service.id);
       localRuns.current.add(`${service.id}:${action.id}`);
       runAction.mutate(
         { id: service.id, action: action.id },
         {
-          onSettled: () => localRuns.current.delete(`${service.id}:${action.id}`),
+          onSettled: () => {
+            pendingServices.current.delete(service.id);
+            // Always release the key: no local toast was shown for a self-
+            // collision (see onError below either), so the eventual real
+            // action:end event is what has to report the outcome — it must
+            // find the key gone, or it suppresses itself right along with it.
+            localRuns.current.delete(`${service.id}:${action.id}`);
+          },
           onSuccess: (response) => {
             toasts.push({
               tone: response.ok ? 'success' : 'error',
@@ -169,6 +197,20 @@ export default function App() {
             });
           },
           onError: (error) => {
+            // useRunAction retries once on a bare network error (Docker
+            // reprogramming iptables for the very action being run briefly
+            // cuts the path to this app — see hooks.ts). When that happens,
+            // the retry lands after the original request already started the
+            // action server-side, and conflicts with itself: a 409 whose
+            // `busy` is this same action, not some other trigger. That's not
+            // a real conflict for the user to act on — the action is already
+            // under way — so stay quiet and let the real result arrive via
+            // the action:end event instead of a misleading "already running"
+            // toast for an action nobody but this tab tried to start twice.
+            if (isSelfCollision(error, action.id)) {
+              retryRecoveries.current.add(`${service.id}:${action.id}`);
+              return;
+            }
             const apiError = error as ApiError;
             toasts.push({
               tone: 'error',
@@ -421,6 +463,18 @@ function formatDiff(diff: { added: string[]; removed: string[]; changed: string[
   for (const id of diff.changed) lines.push(`~ ${id}`);
   if (diff.unchanged > 0) lines.push(`  ${diff.unchanged} unchanged`);
   return lines.join('\n');
+}
+
+/**
+ * True if `error` is a 409 conflict whose `busy` details name the very
+ * action we just dispatched — i.e. our own network-error retry (see
+ * useRunAction) racing the request it retried, not a conflict with some
+ * separately triggered run.
+ */
+function isSelfCollision(error: unknown, actionId: string): boolean {
+  if (!(error instanceof ApiError) || error.code !== 'conflict') return false;
+  const busy = (error.details as { busy?: { actionId?: string } } | undefined)?.busy;
+  return busy?.actionId === actionId;
 }
 
 function buildDetails(output?: { argv?: string[]; stdout?: string; stderr?: string; exitCode?: number | null }): string | undefined {
