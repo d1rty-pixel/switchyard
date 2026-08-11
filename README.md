@@ -222,10 +222,17 @@ provider:
   actions: [start, stop, restart, pause, unpause, pull]
   confirm: [stop, restart]
   stopTimeoutSec: 15
+  acceptedExitCodes: [2]                 # exit codes that still count as a clean stop
 ```
 
 Status, health, restart policy, restart count and published ports come from a
 single `docker inspect`.
+
+Some images don't trap `SIGTERM` cleanly and exit non-zero on a normal
+`docker stop` (Portainer exits `2`, for example). Without `acceptedExitCodes`
+that reads as `failed` forever, even though the stop was intentional and
+succeeded. List the exit code(s) that image is known to use on a clean stop
+and Switchyard reports `stopped` instead, with no exit-code warning.
 
 ## Using the dashboard
 
