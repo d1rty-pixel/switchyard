@@ -166,18 +166,15 @@
     line-height: 1.5;
   }
 
-  /* Signal-path backdrop: two coloured washes plus a faint grid, fixed so the
-     content scrolls over a stable "control surface". */
+  /* Signal-path backdrop: a faint grid over a plain vertical wash, fixed so
+     the content scrolls over a stable "control surface". */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 0;
-    background:
-      radial-gradient(70rem 40rem at 12% -10%, color-mix(in oklab, var(--color-signal) 12%, transparent), transparent 60%),
-      radial-gradient(60rem 36rem at 92% 4%, color-mix(in oklab, var(--color-route) 14%, transparent), transparent 62%),
-      linear-gradient(180deg, var(--color-base-2), var(--color-base) 46%);
+    background: linear-gradient(180deg, var(--color-base-2), var(--color-base) 46%);
   }
 
   body::after {
