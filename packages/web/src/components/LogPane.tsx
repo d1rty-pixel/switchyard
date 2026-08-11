@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, Check, Copy, Loader2, Pause, Play, ScrollText, WrapText } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDownToLine, Check, Copy, Loader2, Pause, Play, ScrollText, Search, WrapText, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useLogs } from '../lib/hooks';
 import { formatClock } from '../lib/format';
@@ -12,11 +12,26 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
   const [auto, setAuto] = useState(true);
   const [wrap, setWrap] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [filter, setFilter] = useState('');
   const scroller = useRef<HTMLDivElement>(null);
   const pinnedToBottom = useRef(true);
 
   const query = useLogs(serviceId, tail, enabled, auto);
-  const lines = query.data?.lines ?? [];
+  const allLines = query.data?.lines ?? [];
+
+  // Client-side substring filter — the tail is already capped server-side, so
+  // there is nothing to gain from pushing this to the API.
+  const needle = filter.trim().toLowerCase();
+  // Keep each surviving line's position in the unfiltered tail, so the
+  // gutter still reads as "line N of the fetched output" rather than
+  // renumbering from 1 whenever the filter narrows the view.
+  const lines = useMemo(
+    () =>
+      allLines
+        .map((line, index) => ({ line, index }))
+        .filter((entry) => !needle || entry.line.toLowerCase().includes(needle)),
+    [allLines, needle],
+  );
 
   useEffect(() => {
     const element = scroller.current;
@@ -32,7 +47,7 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(lines.join('\n'));
+      await navigator.clipboard.writeText(lines.map((entry) => entry.line).join('\n'));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -43,10 +58,31 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1.5 border-b border-line-soft px-4 py-2">
-        <span className="mono mr-auto flex min-w-0 items-center gap-1.5 truncate text-faint">
+        <span className="mono flex min-w-0 items-center gap-1.5 truncate text-faint">
           <ScrollText className="size-3.5 shrink-0" />
           <span className="truncate">{query.data?.source ?? 'logs'}</span>
         </span>
+
+        <div className="ml-2 flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-line bg-surface-2/60 px-2 py-1">
+          <Search className="size-3.5 shrink-0 text-faint" />
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="Filter lines…"
+            aria-label="Filter log lines"
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink placeholder:text-faint focus:outline-none"
+          />
+          {filter && (
+            <button
+              type="button"
+              onClick={() => setFilter('')}
+              aria-label="Clear filter"
+              className="rounded p-0.5 text-faint hover:text-ink"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center rounded-lg border border-line bg-surface-2/60 p-0.5">
           {TAIL_OPTIONS.map((option) => (
@@ -104,10 +140,10 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
         )}
 
         {!query.isPending && !query.isError && lines.length === 0 && (
-          <p className="text-faint">No log output.</p>
+          <p className="text-faint">{needle ? 'No lines match the filter.' : 'No log output.'}</p>
         )}
 
-        {lines.map((line, index) => (
+        {lines.map(({ line, index }) => (
           <div
             key={`${index}-${line.slice(0, 24)}`}
             className={clsx(
@@ -125,7 +161,7 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
       </div>
 
       <div className="flex items-center justify-between border-t border-line-soft px-4 py-1.5 text-[11.5px] text-faint">
-        <span className="num">{lines.length} lines</span>
+        <span className="num">{needle ? `${lines.length} / ${allLines.length} lines` : `${lines.length} lines`}</span>
         <span className="flex items-center gap-2">
           {query.isFetching && <Loader2 className="size-3 animate-spin" />}
           updated {formatClock(query.data?.fetchedAt)}
