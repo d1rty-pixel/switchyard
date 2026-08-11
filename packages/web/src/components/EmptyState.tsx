@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, ChevronRight, FileWarning, PowerOff, SearchX, Unplug } from 'lucide-react';
+import { AlertTriangle, ChevronRight, FileWarning, MonitorX, PowerOff, SearchX, Unplug, X } from 'lucide-react';
 import clsx from 'clsx';
 import { Logo } from './Logo';
 import type { DisabledService } from '../lib/types';
@@ -98,6 +98,34 @@ export function ConfigWarnings({ warnings }: { warnings: string[] }) {
             ))}
           </ul>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * No GPU compositor available (accel disabled, or a software renderer).
+ * Heavier visual effects degrade to cheaper ones in that case — see
+ * `hasGpuAcceleration` — so this just tells the user why the UI looks a
+ * little plainer than usual. Dismiss is remembered per browser.
+ */
+export function GpuAccelWarning({ dismissed, onDismiss }: { dismissed: boolean; onDismiss: () => void }) {
+  if (dismissed) return null;
+  return (
+    <div className="mx-auto mb-4 max-w-[110rem] px-4 sm:px-6">
+      <div className="flex items-start gap-2.5 rounded-xl border border-st-degraded/25 bg-st-degraded/[0.06] px-3 py-2.5">
+        <MonitorX className="mt-0.5 size-4 shrink-0 text-st-degraded" />
+        <p className="min-w-0 flex-1 text-[13.5px] text-st-degraded">
+          GPU acceleration is off in this browser. Some visual effects are toned down so the UI stays smooth.
+        </p>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="shrink-0 rounded-md p-1 text-st-degraded/70 transition-colors hover:bg-st-degraded/10 hover:text-st-degraded"
+        >
+          <X className="size-3.5" />
+        </button>
       </div>
     </div>
   );

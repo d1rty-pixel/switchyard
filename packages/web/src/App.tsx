@@ -26,11 +26,13 @@ import {
   ApiDownState,
   ConfigWarnings,
   DisabledServices,
+  GpuAccelWarning,
   InlineError,
   NoMatchesState,
   NoServicesState,
 } from './components/EmptyState';
 import { useToasts } from './components/Toasts';
+import { hasGpuAcceleration } from './lib/gpu';
 
 const DEFAULT_FILTERS: Filters = { group: null, states: [], types: [], sort: 'group' };
 
@@ -50,6 +52,7 @@ export default function App() {
   const [view, setView] = usePersistentState<ViewMode>('view', 'cards');
   const [openId, setOpenId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<(ConfirmRequest & { run: () => void }) | null>(null);
+  const [gpuWarningDismissed, setGpuWarningDismissed] = usePersistentState('gpuWarningDismissed', false);
 
   // Keeps relative timestamps honest. Every 20 s, not every second: the labels
   // are coarse (see formatAgo), and re-rendering the grid once a second made the
@@ -229,6 +232,9 @@ export default function App() {
       )}
 
       <main className="mx-auto max-w-[110rem] px-4 pt-5 sm:px-6">
+        {!hasGpuAcceleration() && (
+          <GpuAccelWarning dismissed={gpuWarningDismissed} onDismiss={() => setGpuWarningDismissed(true)} />
+        )}
         {meta.data && <ConfigWarnings warnings={meta.data.configWarnings} />}
         {services.isError && !apiDown && <InlineError message={(services.error as Error).message} />}
 
