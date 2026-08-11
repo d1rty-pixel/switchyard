@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { hasGpuAcceleration } from '../lib/gpu';
 import { useRefreshService, useServiceDetail } from '../lib/hooks';
 import { formatAgo, formatClock, formatDuration, formatMetric, formatUptime } from '../lib/format';
 import { iconFor } from '../lib/icons';
@@ -65,6 +66,11 @@ export function ServiceDrawer({
 
   if (!mounted) return null;
   const open = serviceId !== null;
+  // Backdrop blur and a large shadow blur radius are near-free on a GPU
+  // compositor, but get rasterized on the main thread without one — right on
+  // the animation path, so a software renderer turns the open/close slide
+  // janky. Drop them when there's no GPU to composite them for free.
+  const gpu = hasGpuAcceleration();
 
   return (
     <>
@@ -75,13 +81,17 @@ export function ServiceDrawer({
             open ? 'animate-fade-in' : 'animate-fade-out pointer-events-none',
           )}
         >
-          <div className="absolute inset-0 bg-base/60 backdrop-blur-[2px]" onClick={onClose} />
+          <div
+            className={clsx('absolute inset-0 bg-base/60', gpu && 'backdrop-blur-[2px]')}
+            onClick={onClose}
+          />
 
           <aside
             // Wide by design: container lists, argv lines and log output are all
             // horizontal content that a narrow panel forces into wrapping.
             className={clsx(
-              'glass relative flex h-full w-full max-w-[min(84rem,96vw)] flex-col border-l shadow-[-30px_0_80px_-40px_rgba(0,0,0,1)]',
+              'glass relative flex h-full w-full max-w-[min(84rem,96vw)] flex-col border-l',
+              gpu ? 'shadow-[-30px_0_80px_-40px_rgba(0,0,0,1)]' : 'shadow-[-8px_0_16px_-8px_rgba(0,0,0,0.6)]',
               open ? 'animate-slide-in' : 'animate-slide-out',
             )}
             role="dialog"
