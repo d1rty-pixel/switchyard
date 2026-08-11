@@ -273,7 +273,7 @@ function OverflowMenu({
                   }}
                   className={clsx(
                     'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                    locked ? 'cursor-not-allowed opacity-40' : 'hover:bg-surface-2',
+                    locked ? 'cursor-not-allowed opacity-40' : 'hover:bg-surface-3',
                   )}
                 >
                   {busyActionId === action.id ? (
