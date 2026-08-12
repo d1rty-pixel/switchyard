@@ -67,10 +67,13 @@ export const api = {
       `/api/services/${encodeURIComponent(id)}/actions/${encodeURIComponent(action)}`,
       { method: 'POST' },
     ),
-  logs: (id: string, tail?: number) =>
-    request<LogsResponse>(
-      `/api/services/${encodeURIComponent(id)}/logs${tail ? `?tail=${tail}` : ''}`,
-    ),
+  logs: (id: string, tail?: number, containers?: string[]) => {
+    const params = new URLSearchParams();
+    if (tail) params.set('tail', String(tail));
+    if (containers?.length) params.set('containers', containers.join(','));
+    const query = params.toString();
+    return request<LogsResponse>(`/api/services/${encodeURIComponent(id)}/logs${query ? `?${query}` : ''}`);
+  },
   reload: () => request<{ ok: boolean; path: string; services: number }>('/api/reload', { method: 'POST' }),
   reloadPreview: () => request<ReloadPreview>('/api/reload/preview'),
 };

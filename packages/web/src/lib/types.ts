@@ -79,6 +79,8 @@ export interface ChildStatus {
   image?: string;
   ports?: PortInfo[];
   metrics?: Metric[];
+  /** Compose service key (not the container name), when the provider has one. Used to filter logs. */
+  service?: string;
 }
 
 export interface ServiceSummary {

@@ -17,7 +17,7 @@ export const keys = {
   meta: ['meta'] as const,
   services: ['services'] as const,
   service: (id: string) => ['service', id] as const,
-  logs: (id: string, tail: number) => ['logs', id, tail] as const,
+  logs: (id: string, tail: number, containers: string[]) => ['logs', id, tail, containers] as const,
 };
 
 export function useMeta() {
@@ -45,10 +45,16 @@ export function useServiceDetail(id: string | null) {
   });
 }
 
-export function useLogs(id: string | null, tail: number, enabled: boolean, autoRefresh: boolean) {
+export function useLogs(
+  id: string | null,
+  tail: number,
+  enabled: boolean,
+  autoRefresh: boolean,
+  containers: string[] = [],
+) {
   return useQuery({
-    queryKey: keys.logs(id ?? '—', tail),
-    queryFn: () => api.logs(id as string, tail),
+    queryKey: keys.logs(id ?? '—', tail, containers),
+    queryFn: () => api.logs(id as string, tail, containers),
     enabled: id !== null && enabled,
     refetchInterval: autoRefresh ? 4_000 : false,
     staleTime: 1_000,

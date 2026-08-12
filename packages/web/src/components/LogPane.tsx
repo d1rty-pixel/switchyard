@@ -1,22 +1,62 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, Check, Copy, Loader2, Pause, Play, ScrollText, Search, WrapText, X } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  Boxes,
+  Check,
+  Copy,
+  Loader2,
+  Pause,
+  Play,
+  ScrollText,
+  Search,
+  WrapText,
+  X,
+} from 'lucide-react';
 import clsx from 'clsx';
 import { useLogs } from '../lib/hooks';
 import { formatClock } from '../lib/format';
+import type { ChildStatus } from '../lib/types';
 
 const TAIL_OPTIONS = [100, 200, 500, 1000];
 
+export interface LogContainerOption {
+  /** Value sent to the API — the compose service key when there is one, else the display name. */
+  value: string;
+  label: string;
+}
+
+export function containerOptionsFrom(children: ChildStatus[]): LogContainerOption[] {
+  return children.map((child) => ({ value: child.service ?? child.name, label: child.name }));
+}
+
 /** Log tail viewer: pull-based, with optional 4 s auto-refresh. */
-export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: boolean }) {
+export function LogPane({
+  serviceId,
+  enabled,
+  containerOptions = [],
+}: {
+  serviceId: string;
+  enabled: boolean;
+  containerOptions?: LogContainerOption[];
+}) {
   const [tail, setTail] = useState(200);
   const [auto, setAuto] = useState(true);
   const [wrap, setWrap] = useState(false);
   const [copied, setCopied] = useState(false);
   const [filter, setFilter] = useState('');
+  const [containers, setContainers] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const pinnedToBottom = useRef(true);
 
-  const query = useLogs(serviceId, tail, enabled, auto);
+  // A container that disappears from the stack (recreated, scaled down) should
+  // not keep silently filtering logs down to nothing.
+  useEffect(() => {
+    const known = new Set(containerOptions.map((option) => option.value));
+    setContainers((current) => current.filter((value) => known.has(value)));
+  }, [containerOptions]);
+
+  const query = useLogs(serviceId, tail, enabled, auto, containers);
   const allLines = query.data?.lines ?? [];
 
   // Client-side substring filter — the tail is already capped server-side, so
@@ -83,6 +123,66 @@ export function LogPane({ serviceId, enabled }: { serviceId: string; enabled: bo
             </button>
           )}
         </div>
+
+        {containerOptions.length > 1 && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPickerOpen((value) => !value)}
+              aria-label="Filter by container"
+              className={clsx(
+                'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] transition-colors',
+                containers.length > 0
+                  ? 'border-signal/35 bg-signal/12 text-signal'
+                  : 'border-line bg-surface-2/60 text-muted hover:text-ink',
+              )}
+            >
+              <Boxes className="size-3.5" />
+              {containers.length > 0 ? `${containers.length} / ${containerOptions.length}` : 'All containers'}
+            </button>
+
+            {pickerOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setPickerOpen(false)} />
+                <div className="absolute right-0 z-20 mt-1.5 min-w-[180px] rounded-lg border border-line bg-surface-2 p-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => setContainers([])}
+                    className="flex w-full items-center rounded-md px-2 py-1 text-left text-[12.5px] text-muted hover:bg-surface-3 hover:text-ink"
+                  >
+                    All containers
+                  </button>
+                  <div className="my-1 border-t border-line-soft" />
+                  {containerOptions.map((option) => {
+                    const checked = containers.includes(option.value);
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setContainers((current) =>
+                            checked ? current.filter((value) => value !== option.value) : [...current, option.value],
+                          )
+                        }
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12.5px] text-ink hover:bg-surface-3"
+                      >
+                        <span
+                          className={clsx(
+                            'flex size-3.5 shrink-0 items-center justify-center rounded border',
+                            checked ? 'border-signal bg-signal text-white' : 'border-line',
+                          )}
+                        >
+                          {checked && <Check className="size-2.5" />}
+                        </span>
+                        <span className="min-w-0 truncate">{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center rounded-lg border border-line bg-surface-2/60 p-0.5">
           {TAIL_OPTIONS.map((option) => (

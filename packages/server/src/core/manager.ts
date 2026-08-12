@@ -367,14 +367,18 @@ export class ServiceManager {
 
   // ── logs ────────────────────────────────────────────────────────────────────
 
-  async logs(id: string, tail?: number): Promise<LogsResult> {
+  async logs(id: string, tail?: number, containers?: string[]): Promise<LogsResult> {
     const record = this.require(id);
     const context = this.context(record);
     if (!record.provider.supportsLogs({ service: record.service, config: record.service.provider }) || !record.provider.logs) {
       throw unsupported(`service "${id}" does not expose logs`);
     }
     const limit = clamp(tail ?? this.config.settings.logsTail, 10, 5_000);
-    return await record.provider.logs(context, { tail: limit });
+    // Only pass through container names this service actually has, so a stale
+    // or tampered filter can't reach the provider's argv as free-form input.
+    const known = new Set((record.status?.children ?? []).map((child) => child.service ?? child.name));
+    const filtered = containers?.filter((name) => known.has(name));
+    return await record.provider.logs(context, { tail: limit, containers: filtered?.length ? filtered : undefined });
   }
 
   // ── lifecycle ───────────────────────────────────────────────────────────────

@@ -34,6 +34,8 @@ export interface ProviderContext<C = unknown> {
 
 export interface LogsOptions {
   tail: number;
+  /** Restrict output to these containers/services, when the provider supports it. */
+  containers?: string[];
 }
 
 /**

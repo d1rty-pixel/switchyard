@@ -274,6 +274,7 @@ export const composeProvider: Provider<ComposeConfig> = {
         image: container.Image,
         ports: containerPorts,
         metrics,
+        service: container.Service,
       });
 
       for (const port of containerPorts) {
@@ -388,7 +389,16 @@ export const composeProvider: Provider<ComposeConfig> = {
 
   async logs(context, options): Promise<LogsResult> {
     const result = await context.execRaw({
-      argv: [...composeBaseArgv(context.config), 'logs', '--no-color', '--tail', String(options.tail)],
+      argv: [
+        ...composeBaseArgv(context.config),
+        'logs',
+        '--no-color',
+        '--tail',
+        String(options.tail),
+        // Positional args after the options restrict output to those services;
+        // omitting them (the common case) logs the whole stack.
+        ...(options.containers ?? []),
+      ],
       cwd: projectCwd(context),
       env: context.service.env,
       timeoutMs: context.service.timeout,

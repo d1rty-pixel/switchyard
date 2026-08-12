@@ -22,7 +22,7 @@ import { iconFor } from '../lib/icons';
 import { stateStyle } from '../lib/status';
 import { StatusBadge, StatusIndicator } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
-import { LogPane } from './LogPane';
+import { containerOptionsFrom, LogPane } from './LogPane';
 import type { ActionDescriptor, ChildStatus, ServiceDetail, ServiceSummary } from '../lib/types';
 
 type Tab = 'overview' | 'logs' | 'history' | 'config';
@@ -168,7 +168,13 @@ export function ServiceDrawer({
 
                 <div className="min-h-0 flex-1 overflow-hidden">
                   {tab === 'overview' && <OverviewTab service={service} />}
-                  {tab === 'logs' && <LogPane serviceId={service.id} enabled={service.supportsLogs} />}
+                  {tab === 'logs' && (
+                    <LogPane
+                      serviceId={service.id}
+                      enabled={service.supportsLogs}
+                      containerOptions={containerOptionsFrom(service.childStatuses)}
+                    />
+                  )}
                   {tab === 'history' && <HistoryTab service={service} />}
                   {tab === 'config' && <ConfigTab service={service} />}
                 </div>

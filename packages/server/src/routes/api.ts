@@ -10,7 +10,15 @@ import type { EventBus } from '../core/events.js';
 
 const paramsSchema = z.object({ id: idSchema });
 const actionParamsSchema = z.object({ id: idSchema, action: actionIdSchema });
-const logsQuerySchema = z.object({ tail: z.coerce.number().int().min(10).max(5_000).optional() });
+const logsQuerySchema = z.object({
+  tail: z.coerce.number().int().min(10).max(5_000).optional(),
+  // Comma-separated container/service names to restrict logs to; manager.logs()
+  // re-validates each against the service's actual children before use.
+  containers: z
+    .string()
+    .optional()
+    .transform((value) => value?.split(',').map((entry) => entry.trim()).filter(Boolean)),
+});
 
 export interface ApiDeps {
   manager: ServiceManager;
@@ -83,8 +91,8 @@ export async function registerApi(app: FastifyInstance, deps: ApiDeps): Promise<
 
   app.get('/api/services/:id/logs', async (request) => {
     const { id } = parse(paramsSchema, request.params);
-    const { tail } = parse(logsQuerySchema, request.query ?? {});
-    const logs = await manager.logs(id, tail);
+    const { tail, containers } = parse(logsQuerySchema, request.query ?? {});
+    const logs = await manager.logs(id, tail, containers);
     return { id, ...logs, fetchedAt: new Date().toISOString() };
   });
 
