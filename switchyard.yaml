@@ -29,6 +29,23 @@ settings:
 # the status poll above, because CPU and I/O rates are differences between two
 # readings. Thresholds live per service (see services.d/*.yaml); without any,
 # services are sampled for display only and never alert.
+#
+# Thresholds are ABSOLUTE per-service values, not a share of the machine, so they
+# only mean something relative to the host they were written for. Record the host
+# whenever you tune them:
+#
+#   this host: 14 CPU threads (so 1400 % is everything), 30 GiB RAM
+#
+#   cpu:    100 % is one fully busy core, exactly as in `top` and `docker stats`.
+#           A `warning: 400%` that leaves plenty of headroom here would be
+#           "the whole box" on a 4-thread VM.
+#   memory: absolute bytes. A 2 GiB warning is 7 % of this machine and 50 % of a
+#           4 GiB VM.
+#
+# Moving a service definition to a smaller or larger machine therefore means
+# re-deriving its thresholds — take a fresh idle baseline from the dashboard,
+# then set the warning just above it and the critical at the point where the
+# service is taking a share of the host you would want to be told about.
 monitoring:
   interval: 15s # sampling interval
   for: 30s # default time a threshold must stay exceeded before alerting
