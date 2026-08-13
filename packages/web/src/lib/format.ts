@@ -1,4 +1,4 @@
-import type { Metric } from './types';
+import type { Metric, ResourceUnit } from './types';
 
 /** Compact duration: 3d 4h, 5h 12m, 8m 20s, 12s. */
 export function formatDuration(ms: number): string {
@@ -88,6 +88,24 @@ export function formatMetric(metric: Metric): string {
       return formatAgo(metric.value);
     default:
       return metric.value;
+  }
+}
+
+/**
+ * Renders a resource value.
+ *
+ * Values are rounded hard on purpose: a sample arrives every few seconds and
+ * "31.7 %" turning into "31.9 %" is churn, not information. The coarse steps here
+ * are what make a card that is displaying live load sit still.
+ */
+export function formatResource(value: number, unit: ResourceUnit): string {
+  switch (unit) {
+    case 'percent':
+      return `${value < 10 ? Math.round(value * 10) / 10 : Math.round(value)}%`;
+    case 'bytes':
+      return formatBytes(value);
+    case 'bytesPerSecond':
+      return `${formatBytes(value)}/s`;
   }
 }
 

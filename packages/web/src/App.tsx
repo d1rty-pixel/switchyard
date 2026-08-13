@@ -16,7 +16,8 @@ import {
   useTicker,
 } from './lib/hooks';
 import { stateStyle } from './lib/status';
-import type { ActionDescriptor, ActionRecord, ServiceSummary, ViewMode } from './lib/types';
+import { formatResource } from './lib/format';
+import type { ActionDescriptor, ActionRecord, ResourceAlertEvent, ServiceSummary, ViewMode } from './lib/types';
 import { TopBar } from './components/TopBar';
 import { FilterBar, type Filters } from './components/FilterBar';
 import { ServiceCard, SkeletonCard } from './components/ServiceCard';
@@ -161,6 +162,47 @@ export default function App() {
         }
       },
       [notificationsEnabled],
+    ),
+    useCallback(
+      ({ event, alert, notify: worthNotifying, reason }: ResourceAlertEvent) => {
+        const value = formatResource(alert.value, alert.unit);
+        const threshold = formatResource(alert.threshold, alert.unit);
+
+        // Only a new or worsening breach interrupts the user. Recoveries and
+        // de-escalations are good news and stay in the toast stream; every
+        // sample in between produces no event at all, so a service sitting above
+        // its threshold for an hour is reported once, not every 15 seconds.
+        // `worthNotifying` carries the server's cooldown decision for repeats.
+        if (notificationsEnabled && worthNotifying && (event === 'activated' || event === 'escalated')) {
+          notify(
+            `${alert.serviceName} · ${alert.label} ${alert.severity}`,
+            `${value} (threshold ${threshold}) — ${reason}`,
+            // Own tag namespace, per service *and* metric: an action result or a
+            // state change for the same service must not replace this banner,
+            // and a CPU alert must not replace a memory one.
+            `switchyard:resource:${alert.serviceId}:${alert.metric}`,
+          );
+        }
+
+        // The same gate applies to toasts. `notify` is the alert machine's dedup
+        // decision, and re-reporting a flapping metric every time it crosses back
+        // over its threshold would flood the toast stack with news the user
+        // already has. The card and drawer carry the alert for as long as it is
+        // active, so nothing is lost by staying quiet here.
+        if (event === 'deescalated' || !worthNotifying) return;
+        toasts.push({
+          tone: event === 'cleared' ? 'info' : alert.severity === 'critical' ? 'error' : 'warning',
+          title:
+            event === 'cleared'
+              ? `${alert.serviceName} · ${alert.label} back to normal`
+              : `${alert.serviceName} · ${alert.label} ${alert.severity}`,
+          message:
+            event === 'cleared'
+              ? `${value} — ${reason}`
+              : `${value} exceeds the ${alert.severity} threshold ${threshold} (${reason})`,
+        });
+      },
+      [notificationsEnabled, toasts],
     ),
   );
 
@@ -454,6 +496,8 @@ function matchesSearch(service: ServiceSummary, needle: string): boolean {
     ...service.tags,
     ...service.ports.map((port) => String(port.hostPort ?? port.port)),
     ...service.urls.map((url) => url.url),
+    // Lets "cpu critical" narrow the list down to what is currently alerting.
+    ...service.alerts.flatMap((alert) => [alert.metric, alert.label, alert.severity]),
   ]
     .join(' ')
     .toLowerCase();

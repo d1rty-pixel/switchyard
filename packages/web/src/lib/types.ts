@@ -83,6 +83,61 @@ export interface ChildStatus {
   service?: string;
 }
 
+export type ResourceMetric = 'cpu' | 'memory' | 'diskRead' | 'diskWrite' | 'netRx' | 'netTx';
+export type ResourceUnit = 'percent' | 'bytes' | 'bytesPerSecond';
+export type AlertSeverity = 'warning' | 'critical';
+export type AlertEventKind = 'activated' | 'escalated' | 'deescalated' | 'cleared';
+
+/** Measured per-service consumption. Absent fields are not measurable. */
+export interface ResourceValues {
+  cpuPercent?: number;
+  memoryBytes?: number;
+  diskReadBps?: number;
+  diskWriteBps?: number;
+  netRxBps?: number;
+  netTxBps?: number;
+}
+
+export interface ResourceChildSample extends ResourceValues {
+  id: string;
+  name: string;
+  memoryLimitBytes?: number;
+}
+
+export interface ResourceSample extends ResourceValues {
+  at: string;
+  /** What the numbers are attributed to, in the provider's words. */
+  attribution: string;
+  memoryLimitBytes?: number;
+  children?: ResourceChildSample[];
+}
+
+export interface ResourceAlert {
+  key: string;
+  serviceId: string;
+  serviceName: string;
+  metric: ResourceMetric;
+  label: string;
+  unit: ResourceUnit;
+  severity: AlertSeverity;
+  value: number;
+  threshold: number;
+  breachedAt: string;
+  activatedAt: string;
+  updatedAt: string;
+  active: boolean;
+  clearedAt?: string;
+  stale?: boolean;
+}
+
+export interface ResourceAlertEvent {
+  event: AlertEventKind;
+  alert: ResourceAlert;
+  /** Whether the server considers this worth a desktop notification. */
+  notify: boolean;
+  reason: string;
+}
+
 export interface ServiceSummary {
   id: string;
   name: string;
@@ -110,6 +165,10 @@ export interface ServiceSummary {
   supportsLogs: boolean;
   children?: { total: number; running: number };
   lastAction?: ActionRecord | null;
+
+  resources: ResourceSample | null;
+  alerts: ResourceAlert[];
+  monitored: boolean;
 }
 
 export interface ServiceDetail extends ServiceSummary {
@@ -122,6 +181,7 @@ export interface ServiceDetail extends ServiceSummary {
   source: string;
   envKeys: string[];
   providerConfig: unknown;
+  monitoringConfig: unknown;
 }
 
 export interface DisabledService {
@@ -148,7 +208,11 @@ export interface MetaResponse {
   disabledServices: DisabledService[];
   groups: GroupDefinition[];
   providers: { type: string; label: string; description: string }[];
-  settings: { statusIntervalMs: number; logsTail: number };
+  settings: {
+    statusIntervalMs: number;
+    logsTail: number;
+    monitoring: { enabled: boolean; intervalMs: number };
+  };
 }
 
 export interface ActionResponse {

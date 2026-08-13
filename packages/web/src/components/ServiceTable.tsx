@@ -1,8 +1,9 @@
-import { AlertTriangle, ArrowUpRight, Clock3, Radio, ScrollText } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Clock3, Gauge, Radio, ScrollText } from 'lucide-react';
 import clsx from 'clsx';
 import { iconFor } from '../lib/icons';
+import { resourceEntries } from '../lib/resources';
 import { stateStyle } from '../lib/status';
-import { formatAgo, formatUptime } from '../lib/format';
+import { formatAgo, formatResource, formatUptime } from '../lib/format';
 import { StatusBadge, StatusIndicator } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
 import type { ActionDescriptor, ServiceSummary } from '../lib/types';
@@ -37,6 +38,7 @@ export function ServiceTable({ services, groupNames, onOpen, onRunAction }: Serv
               <Th className="hidden lg:table-cell">Detail</Th>
               <Th className="hidden w-px whitespace-nowrap xl:table-cell">Group</Th>
               <Th className="hidden w-px whitespace-nowrap md:table-cell">Uptime</Th>
+              <Th className="hidden w-px whitespace-nowrap md:table-cell">Load</Th>
               <Th className="hidden lg:table-cell">Endpoints</Th>
               <Th className="w-px whitespace-nowrap text-right">Actions</Th>
               <Th className="hidden w-px whitespace-nowrap text-right sm:table-cell">Checked</Th>
@@ -84,6 +86,12 @@ function ServiceRow({
   const primaryUrl = service.urls.find((url) => url.primary) ?? service.urls[0];
   const warning = service.warnings[0] ?? service.errors[0];
   const extraWarnings = service.warnings.length + service.errors.length - 1;
+  const load = service.resources
+    ? resourceEntries(service.resources, service.alerts).filter(
+        (entry) => entry.metric === 'cpu' || entry.metric === 'memory',
+      )
+    : [];
+  const alert = service.alerts[0];
 
   return (
     <tr
@@ -118,6 +126,18 @@ function ServiceRow({
                   title={extraWarnings > 0 ? `${warning} (+${extraWarnings} more)` : warning}
                 >
                   <AlertTriangle className="size-3.5" />
+                </span>
+              )}
+              {alert && (
+                <span
+                  className={clsx('shrink-0', alert.severity === 'critical' ? 'text-st-failed' : 'text-st-degraded')}
+                  title={
+                    `${alert.label} ${alert.severity}: ${formatResource(alert.value, alert.unit)} over ` +
+                    `${formatResource(alert.threshold, alert.unit)}` +
+                    (service.alerts.length > 1 ? ` (+${service.alerts.length - 1} more)` : '')
+                  }
+                >
+                  <Gauge className="size-3.5" />
                 </span>
               )}
             </span>
@@ -159,6 +179,34 @@ function ServiceRow({
           <span className="num flex items-center gap-1" title={`Since ${service.since}`}>
             <Clock3 className="size-3 text-faint" />
             {uptime}
+          </span>
+        ) : (
+          <span className="text-faint">—</span>
+        )}
+      </td>
+
+      {/* CPU and memory only: the row has to stay one line, and the drawer has
+          the full set including disk and network. */}
+      <td className="hidden whitespace-nowrap px-3 py-2.5 text-[12.5px] md:table-cell">
+        {load.length > 0 ? (
+          <span className="flex items-center gap-2">
+            {load.map((entry) => (
+              <span
+                key={entry.metric}
+                title={`${entry.label} · ${service.resources?.attribution ?? ''}`}
+                className={clsx(
+                  'num',
+                  entry.alert?.severity === 'critical'
+                    ? 'text-st-failed'
+                    : entry.alert
+                      ? 'text-st-degraded'
+                      : 'text-muted',
+                )}
+              >
+                <span className="text-faint">{entry.short} </span>
+                {formatResource(entry.value, entry.unit)}
+              </span>
+            ))}
           </span>
         ) : (
           <span className="text-faint">—</span>

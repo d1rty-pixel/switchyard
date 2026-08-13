@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { AlertTriangle, Check, ChevronDown, Info, X } from 'lucide-react';
 import clsx from 'clsx';
 
-export type ToastTone = 'success' | 'error' | 'info';
+export type ToastTone = 'success' | 'error' | 'warning' | 'info';
 
 export interface Toast {
   id: number;
@@ -23,6 +23,9 @@ const ToastContext = createContext<ToastApi | null>(null);
 const AUTO_DISMISS_MS: Record<ToastTone, number | null> = {
   success: 5_000,
   info: 6_000,
+  // A resource warning describes a condition that is still going on, so it is
+  // given longer than an informational message but does not demand a click.
+  warning: 12_000,
   // Failures stay until dismissed: they usually carry output worth reading.
   error: null,
 };
@@ -75,6 +78,11 @@ const TONE_STYLE: Record<ToastTone, { ring: string; icon: ReactNode; accent: str
     ring: 'border-st-failed/40',
     accent: 'bg-st-failed',
     icon: <AlertTriangle className="size-4 text-st-failed" />,
+  },
+  warning: {
+    ring: 'border-st-degraded/40',
+    accent: 'bg-st-degraded',
+    icon: <AlertTriangle className="size-4 text-st-degraded" />,
   },
   info: {
     ring: 'border-route/35',

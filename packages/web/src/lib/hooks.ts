@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
-import type { ActionRecord, ServiceDetail, ServiceSummary } from './types';
+import type { ActionRecord, ResourceAlertEvent, ServiceDetail, ServiceSummary } from './types';
 
 // A container start/stop elsewhere on the host reprograms Docker's iptables
 // rules, which briefly cuts the docker0-bridge path Traefik uses to reach
@@ -90,6 +90,7 @@ export interface StreamState {
 export function useEventStream(
   onAction?: (id: string, record: ActionRecord) => void,
   onStateChange?: (previous: ServiceSummary | undefined, next: ServiceSummary) => void,
+  onResourceAlert?: (event: ResourceAlertEvent) => void,
 ): StreamState {
   const client = useQueryClient();
   const [state, setState] = useState<StreamState>({ connected: false, lastEventAt: null, reconnects: 0 });
@@ -97,6 +98,8 @@ export function useEventStream(
   actionHandler.current = onAction;
   const stateChangeHandler = useRef(onStateChange);
   stateChangeHandler.current = onStateChange;
+  const alertHandler = useRef(onResourceAlert);
+  alertHandler.current = onResourceAlert;
 
   useEffect(() => {
     const source = new EventSource('/api/events');
@@ -157,6 +160,12 @@ export function useEventStream(
     on('action:end', (data: { id: string; record: ActionRecord }) => {
       actionHandler.current?.(data.id, data.record);
       void client.invalidateQueries({ queryKey: keys.service(data.id) });
+    });
+
+    // The alert list itself rides along on service:update; this event exists so
+    // the notifier can tell an activation from a recovery.
+    on('resource:alert', (data: ResourceAlertEvent) => {
+      alertHandler.current?.(data);
     });
 
     on('config:reload', () => {
