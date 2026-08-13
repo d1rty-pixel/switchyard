@@ -85,3 +85,51 @@ describe('package entry points', () => {
     assert.match(root.scripts?.build ?? '', /@switchyard\/mcp/);
   });
 });
+
+describe('global registration stays opt-in', () => {
+  const read = (path: string): string => readFileSync(resolve(repoRoot, path), 'utf8');
+
+  it('is never performed by install, build or start', () => {
+    // Registering the server belongs to the MCP client's own configuration
+    // (~/.claude.json), not to Switchyard's runtime. Nothing that runs as part of
+    // getting Switchyard going may reach into it.
+    const pkg = JSON.parse(read('package.json')) as { scripts?: Record<string, string> };
+    const scripts = pkg.scripts ?? {};
+    for (const [name, body] of Object.entries(scripts)) {
+      if (name === 'mcp:install') continue;
+      assert.doesNotMatch(body, /claude\s+mcp/, `npm run ${name} must not touch the client config`);
+      assert.doesNotMatch(body, /\.claude\.json/, `npm run ${name} must not touch the client config`);
+    }
+    assert.match(scripts['mcp:install'] ?? '', /switchyard-mcp-install\.sh/);
+  });
+
+  it('happens only in the install script, never in either management script', () => {
+    for (const path of ['scripts/switchyard-mcp-manage.sh', 'scripts/switchyard-manage.sh']) {
+      assert.doesNotMatch(read(path), /claude\s+mcp|\.claude\.json/, `${path} must not register anything`);
+    }
+    assert.match(read('scripts/switchyard-mcp-install.sh'), /claude mcp add --scope user/);
+  });
+
+  it('cannot happen from the running server at all, which spawns nothing', () => {
+    // Stronger than grepping for `claude mcp`: this package has no subprocess
+    // machinery whatsoever, so neither transport can reach the client's config —
+    // or anything else on the machine — however it is invoked. The help text does
+    // print the registration commands, and printing them is the point.
+    for (const path of [
+      'packages/mcp/src/index.ts',
+      'packages/mcp/src/http.ts',
+      'packages/mcp/src/server.ts',
+      'packages/mcp/src/config.ts',
+      'packages/mcp/src/client.ts',
+    ]) {
+      const source = read(path);
+      assert.doesNotMatch(source, /node:child_process|require\('child_process'\)/, `${path} must not spawn`);
+      assert.doesNotMatch(source, /\b(execFile|execSync|spawnSync)\b/, `${path} must not spawn`);
+      assert.doesNotMatch(source, /writeFile|appendFile/, `${path} must not write files`);
+    }
+  });
+
+  it('offers a dry run, so the commands can be read before they run', () => {
+    assert.match(read('scripts/switchyard-mcp-install.sh'), /--dry-run/);
+  });
+});
