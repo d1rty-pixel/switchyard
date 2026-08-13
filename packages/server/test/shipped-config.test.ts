@@ -21,6 +21,35 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const configPath = resolve(repoRoot, 'switchyard.yaml');
 const shippedFile = 'services.d/00-switchyard.yaml';
 
+/**
+ * The shipped definition as *committed*, not as it sits in the working tree.
+ *
+ * "Ships enabled" is a property of the file a clone receives, and switching the
+ * service off locally is exactly what the header of that file invites the reader
+ * to do. Returns undefined outside a git checkout (a tarball, a vendored copy),
+ * where there is nothing to compare against.
+ */
+function committed(path: string): string | undefined {
+  try {
+    return execFileSync('git', ['show', `HEAD:${path}`], { cwd: repoRoot, encoding: 'utf8' });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The shipped service whether or not the working tree has it switched off. Only
+ * the fields `disabled` carries are available in the second case, so anything
+ * beyond identity is asserted against the file itself.
+ */
+async function shippedService(): Promise<{ type: string; source: string } | undefined> {
+  const config = await loadConfig(configPath);
+  return (
+    config.services.find((service) => service.id === 'switchyard') ??
+    config.disabled.find((service) => service.id === 'switchyard')
+  );
+}
+
 describe('shipped switchyard.yaml', () => {
   it('loads without a configuration error', async () => {
     const config = await loadConfig(configPath);
@@ -35,9 +64,18 @@ describe('shipped switchyard.yaml', () => {
     );
   });
 
-  it('yields the shipped service, so the dashboard is never empty on a fresh checkout', async () => {
-    const config = await loadConfig(configPath);
-    assert.ok(config.services.some((service) => service.id === 'switchyard'));
+  it('defines the shipped service, whether or not this checkout has it switched on', async () => {
+    assert.ok(await shippedService());
+  });
+
+  it('ships it enabled, so the dashboard is never empty on a fresh checkout', () => {
+    const raw = committed(shippedFile);
+    if (raw === undefined) return; // not a git checkout: nothing to compare against
+    const body = raw
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#'))
+      .join('\n');
+    assert.doesNotMatch(body, /^enabled:\s*false/m, `${shippedFile} must reach a clone enabled`);
   });
 
   it('keeps sample history configured, since the trend queries depend on it', async () => {
@@ -82,26 +120,25 @@ describe('the shipped service definition', () => {
   });
 
   it('needs no privileges, no Docker and no systemd', async () => {
-    const config = await loadConfig(configPath);
-    const self = config.services.find((service) => service.id === 'switchyard');
+    const self = await shippedService();
     assert.equal(self?.type, 'command');
     assert.equal(self?.source, resolve(repoRoot, shippedFile));
   });
 
   it('resolves its workdir inside the checkout rather than an absolute path', async () => {
-    const config = await loadConfig(configPath);
-    const self = config.services.find((service) => service.id === 'switchyard');
-    assert.equal(self?.workdir, repoRoot);
-    assert.ok(existsSync(self?.workdir ?? ''));
+    const raw = await readFile(resolve(repoRoot, shippedFile), 'utf8');
+    const workdir = /^workdir:\s*(\S+)/m.exec(raw)?.[1];
+    assert.ok(workdir, 'the definition must name a workdir');
+    assert.ok(!workdir.startsWith('/'), `${workdir} is absolute and will not survive a clone`);
+    assert.ok(existsSync(resolve(repoRoot, 'services.d', workdir)));
   });
 
   it('carries host-neutral thresholds so it can alert anywhere', async () => {
-    const config = await loadConfig(configPath);
-    const self = config.services.find((service) => service.id === 'switchyard');
+    const raw = await readFile(resolve(repoRoot, shippedFile), 'utf8');
     // One fully busy core and a gibibyte of resident memory are wrong for a Node
     // dashboard on any machine, which is what makes these portable.
-    assert.equal(self?.monitoring.thresholds.cpu?.critical, 100);
-    assert.equal(self?.monitoring.thresholds.memory?.critical, 1_073_741_824);
+    assert.match(raw, /^\s*critical:\s*100%$/m);
+    assert.match(raw, /^\s*critical:\s*1GiB$/m);
   });
 
   it('contains no absolute or user-specific paths', async () => {
