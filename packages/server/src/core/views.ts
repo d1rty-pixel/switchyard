@@ -3,6 +3,7 @@ import type {
   ActionRecord,
   ChildStatus,
   CommandOutput,
+  HistoryEntry,
   Metric,
   PortInfo,
   ServiceState,
@@ -53,7 +54,7 @@ export interface ServiceSummary {
 export interface ServiceDetail extends ServiceSummary {
   statusDetail?: string;
   childStatuses: ChildStatus[];
-  history: ActionRecord[];
+  history: HistoryEntry[];
   raw?: Record<string, string>;
   lastProbe?: CommandOutput;
   workdir?: string;
@@ -97,4 +98,14 @@ export function childRollup(children?: ChildStatus[]): { total: number; running:
   };
 }
 
-export type { ActionDescriptor, ActionRecord, ChildStatus, Metric, PortInfo, ResourceAlert, ResourceSample, UrlInfo };
+export type {
+  ActionDescriptor,
+  ActionRecord,
+  ChildStatus,
+  HistoryEntry,
+  Metric,
+  PortInfo,
+  ResourceAlert,
+  ResourceSample,
+  UrlInfo,
+};

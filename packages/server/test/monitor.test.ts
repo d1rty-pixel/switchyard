@@ -171,8 +171,12 @@ describe('ResourceMonitor sampling', () => {
       ),
     ]);
     await new ResourceMonitor(host, { intervalMs: 1_000 }, quiet).tick(0);
-    // Nothing stored, nothing to preserve, no alert state to change: silence.
-    assert.deepEqual(results, []);
+    // Nothing to store and no alert state to change, but the failure itself is
+    // reported: the manager records the transition into and out of it.
+    assert.equal(results.length, 1);
+    assert.equal(results[0]?.error, 'docker exploded');
+    assert.equal(results[0]?.sample, undefined);
+    assert.deepEqual(results[0]?.events, []);
   });
 
   it('skips services whose monitoring is switched off', async () => {

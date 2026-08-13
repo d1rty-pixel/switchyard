@@ -1,8 +1,8 @@
 import { execCommand, trimForWire, type ExecFn, type ExecRequest } from './exec.js';
 import { conflict, notFound, unsupported } from './errors.js';
-import { appendHistory, loadHistory } from './history-store.js';
+import { appendHistory, compactHistory } from './history-store.js';
 import { logger, type Logger } from './logger.js';
-import { alertDigest, type ResourceAlert } from './alerts.js';
+import { alertDigest, format, type AlertEventKind, type AlertSeverity, type ResourceAlert } from './alerts.js';
 import { ResourceMonitor, type MonitorHost, type MonitorResult, type MonitorTarget } from './monitor.js';
 import {
   bucketSamples,
@@ -27,6 +27,8 @@ import type {
   ActionDescriptor,
   ActionRecord,
   CommandOutput,
+  HistoryEntry,
+  HistorySeverity,
   LogsResult,
   ServiceState,
   StatusResult,
@@ -54,7 +56,14 @@ interface ServiceRecord {
   lastCheckedAt: string | null;
   checking: boolean;
   busy: { actionId: string; label: string; startedAt: string } | null;
-  history: ActionRecord[];
+  history: HistoryEntry[];
+  /**
+   * Newest action, kept separately because the newest *entry* is now often an
+   * alert or a state change, and the card shows the last thing a person did.
+   */
+  lastAction: ActionRecord | null;
+  /** Last resource-sampling failure, held so only the transition is recorded. */
+  sampleError: string | null;
   /** Latest resource sample, or null when the service reports none. */
   resources: ResourceSample | null;
   /** Active resource alerts for this service. */
@@ -79,6 +88,8 @@ export class ServiceManager implements MonitorHost {
   private readonly log: Logger;
   private readonly monitor: ResourceMonitor;
   private readonly history: ResourceHistory;
+  private historyTail: Promise<void> = Promise.resolve();
+  private appendsSinceCompaction = 0;
 
   constructor(
     config: LoadedConfig,
@@ -102,13 +113,14 @@ export class ServiceManager implements MonitorHost {
   private applyConfig(config: LoadedConfig): void {
     const previous = this.records;
     const next = new Map<string, ServiceRecord>();
+    const changed: ServiceRecord[] = [];
 
     for (const service of config.services) {
       const provider = getProvider(service.type);
       if (!provider) continue; // impossible: validated during load
       const existing = previous.get(service.id);
       const sameProvider = existing?.service.type === service.type;
-      next.set(service.id, {
+      const record: ServiceRecord = {
         service,
         provider,
         actions: this.buildActions(provider, service),
@@ -118,20 +130,54 @@ export class ServiceManager implements MonitorHost {
         checking: false,
         busy: existing?.busy ?? null,
         history: existing?.history ?? [],
+        lastAction: existing?.lastAction ?? null,
+        sampleError: existing?.sampleError ?? null,
         // A different provider measures different things, so its samples do not
         // carry over. Counter state is dropped by the monitor for the same reason.
         resources: sameProvider ? existing.resources : null,
         alerts: sameProvider ? existing.alerts : [],
         lastEmitted: null,
-      });
+      };
+      next.set(service.id, record);
       // Retained history measures whatever the old provider measured, with its
       // own attribution — keeping it across a provider swap would mix two
       // different meanings of "CPU for this service" in one series.
       if (existing && !sameProvider) this.history.forget(service.id);
+      if (!existing || definitionChanged(existing.service, service)) changed.push(record);
     }
 
     this.records = next;
     this.config = config;
+
+    // Recorded after the swap so `record()` trims against the new historyLimit.
+    // The very first applyConfig runs from the constructor, where every service
+    // is "new" and nothing has happened yet — skipped via the empty `previous`.
+    if (previous.size > 0) {
+      for (const record of changed) {
+        const added = !previous.has(record.service.id);
+        this.record(record, {
+          kind: 'config',
+          at: new Date().toISOString(),
+          severity: 'info',
+          label: added ? 'Service added' : 'Definition changed',
+          message: added
+            ? `added by a reload of ${config.path}`
+            : `definition changed in a reload of ${config.path}`,
+        });
+      }
+      for (const id of previous.keys()) {
+        if (this.records.has(id)) continue;
+        // No in-memory record survives to hold this, but the log keeps it: the
+        // entry reappears if the service is ever configured again.
+        this.persist(id, {
+          kind: 'config',
+          at: new Date().toISOString(),
+          severity: 'warning',
+          label: 'Service removed',
+          message: `removed by a reload of ${config.path}`,
+        });
+      }
+    }
   }
 
   /** Swap in a freshly loaded config file without restarting the process. */
@@ -170,6 +216,44 @@ export class ServiceManager implements MonitorHost {
       ...descriptor,
       confirm: descriptor.confirm === true || service.confirm.includes(descriptor.id),
     }));
+  }
+
+  // ── history ─────────────────────────────────────────────────────────────────
+
+  /** The single write path: in-memory list, its bound, and the persisted log. */
+  private record(rec: ServiceRecord, entry: HistoryEntry): void {
+    rec.history.push(entry);
+    const limit = this.config.settings.historyLimit;
+    if (rec.history.length > limit) rec.history.splice(0, rec.history.length - limit);
+    if (entry.action) rec.lastAction = entry.action;
+    this.persist(rec.service.id, entry);
+  }
+
+  /**
+   * Appends are chained rather than awaited: an action must not wait on a disk
+   * write, but two of them finishing at once must not interleave their lines
+   * either. `appendHistory` swallows its own errors, so the chain never rejects.
+   */
+  private persist(id: string, entry: HistoryEntry): void {
+    const path = this.historyPath;
+    if (!path) return;
+    this.historyTail = this.historyTail.then(async () => {
+      await appendHistory(path, id, entry);
+      this.appendsSinceCompaction += 1;
+      if (this.appendsSinceCompaction < COMPACT_EVERY) return;
+      this.appendsSinceCompaction = 0;
+      // Inside the chain, so a compaction can never race an append. A process
+      // that runs for weeks would otherwise only ever shrink the log at boot.
+      await compactHistory(path, {
+        historyLimit: this.config.settings.historyLimit,
+        retentionMs: this.config.settings.historyRetention,
+      });
+    });
+  }
+
+  /** Awaited on shutdown so a queued append is not lost with the process. */
+  async flush(): Promise<void> {
+    await this.historyTail;
   }
 
   // ── reads ───────────────────────────────────────────────────────────────────
@@ -246,7 +330,7 @@ export class ServiceManager implements MonitorHost {
       actions: record.actions,
       supportsLogs: record.provider.supportsLogs({ service, config: service.provider }),
       children: childRollup(status?.children),
-      lastAction: record.history.at(-1) ?? null,
+      lastAction: record.lastAction,
 
       resources: record.resources,
       alerts: record.alerts,
@@ -283,6 +367,8 @@ export class ServiceManager implements MonitorHost {
 
   private async probe(record: ServiceRecord): Promise<void> {
     if (record.busy) return; // avoid fighting with a running action
+    const previousState = record.status?.state ?? null;
+    const previousError = record.statusError;
     record.checking = true;
     try {
       const status = await record.provider.status(this.context(record));
@@ -295,6 +381,38 @@ export class ServiceManager implements MonitorHost {
     } finally {
       record.checking = false;
       record.lastCheckedAt = new Date().toISOString();
+    }
+
+    // Transitions only. A service that has been failing for an hour is one
+    // entry, not one per poll tick; and the first probe after boot establishes
+    // a baseline rather than reporting a change that nobody made.
+    const nextState = record.status?.state ?? null;
+    if (previousState !== null && nextState !== null && previousState !== nextState) {
+      this.record(record, {
+        kind: 'state',
+        at: record.lastCheckedAt,
+        severity: stateSeverity(nextState),
+        label: `${previousState} → ${nextState}`,
+        message: record.status?.summary ?? `state changed to ${nextState}`,
+        state: { from: previousState, to: nextState },
+      });
+    }
+    if (previousError === null && record.statusError !== null) {
+      this.record(record, {
+        kind: 'probe',
+        at: record.lastCheckedAt,
+        severity: 'error',
+        label: 'Status probe failed',
+        message: record.statusError,
+      });
+    } else if (previousError !== null && record.statusError === null) {
+      this.record(record, {
+        kind: 'probe',
+        at: record.lastCheckedAt,
+        severity: 'info',
+        label: 'Status probe recovered',
+        message: 'the status probe is answering again',
+      });
     }
 
     this.bus.emit({
@@ -394,6 +512,26 @@ export class ServiceManager implements MonitorHost {
         },
         `resource alert ${event.kind}`,
       );
+      // Recorded on the surviving record only — a service dropped by a reload
+      // has nowhere to put it, and its closing events are pure cleanup.
+      if (current) {
+        const { alert } = event;
+        this.record(current, {
+          kind: 'alert',
+          at: alert.updatedAt,
+          severity: alertSeverity(event.kind, alert.severity),
+          label: `${alert.label} ${ALERT_EVENT_LABEL[event.kind]}`,
+          message: `${format(alert.value, alert.unit)} against a ${alert.severity} threshold of ${format(alert.threshold, alert.unit)} — ${event.reason}`,
+          alert: {
+            event: event.kind,
+            metric: alert.metric,
+            severity: alert.severity,
+            value: alert.value,
+            threshold: alert.threshold,
+            unit: alert.unit,
+          },
+        });
+      }
       this.bus.emit({
         type: 'resource:alert',
         event: event.kind,
@@ -401,6 +539,30 @@ export class ServiceManager implements MonitorHost {
         notify: event.notify,
         reason: event.reason,
       });
+    }
+
+    // Same transition-only rule as the status probe: one entry when sampling
+    // starts failing, one when it works again, nothing in between.
+    if (current) {
+      const error = result.error ?? null;
+      if (error !== null && current.sampleError === null) {
+        this.record(current, {
+          kind: 'probe',
+          at: new Date().toISOString(),
+          severity: 'warning',
+          label: 'Resource sampling failed',
+          message: error,
+        });
+      } else if (error === null && current.sampleError !== null && result.sample !== undefined) {
+        this.record(current, {
+          kind: 'probe',
+          at: new Date().toISOString(),
+          severity: 'info',
+          label: 'Resource sampling recovered',
+          message: 'measurements are arriving again',
+        });
+      }
+      if (result.sample !== undefined || error !== null) current.sampleError = error;
     }
 
     if (record) this.emitIfChanged(record);
@@ -513,12 +675,26 @@ export class ServiceManager implements MonitorHost {
     const record = this.require(id);
     const descriptor = record.actions.find((action) => action.id === actionId);
     if (!descriptor) {
+      this.record(record, {
+        kind: 'rejected',
+        at: new Date().toISOString(),
+        severity: 'warning',
+        label: 'Action rejected',
+        message: `unknown action "${actionId}"`,
+      });
       throw notFound(`unknown action "${actionId}" for service "${id}"`, {
         available: record.actions.map((action) => action.id),
       });
     }
 
     if (record.busy) {
+      this.record(record, {
+        kind: 'rejected',
+        at: new Date().toISOString(),
+        severity: 'warning',
+        label: `${descriptor.label} rejected`,
+        message: `"${record.busy.label}" was already running`,
+      });
       throw conflict(`"${record.busy.label}" is already running for ${id}`, { busy: record.busy });
     }
 
@@ -556,13 +732,15 @@ export class ServiceManager implements MonitorHost {
       excerpt: outcome.output?.stderr ? trimForWire(outcome.output.stderr).split('\n').slice(0, 6).join('\n') : undefined,
     };
 
-    record.history.push(actionRecord);
-    if (record.history.length > this.config.settings.historyLimit) {
-      record.history.splice(0, record.history.length - this.config.settings.historyLimit);
-    }
     record.busy = null;
-
-    if (this.historyPath) void appendHistory(this.historyPath, id, actionRecord);
+    this.record(record, {
+      kind: 'action',
+      at: actionRecord.startedAt,
+      severity: outcome.ok ? 'info' : 'error',
+      label: descriptor.label,
+      message: outcome.message,
+      action: actionRecord,
+    });
 
     log[outcome.ok ? 'info' : 'warn'](
       { ok: outcome.ok, durationMs: actionRecord.durationMs, exitCode: actionRecord.exitCode },
@@ -617,13 +795,29 @@ export class ServiceManager implements MonitorHost {
     this.monitor.start();
   }
 
-  /** Replays persisted history into the in-memory records once, at boot. */
+  /**
+   * Replays persisted history into the in-memory records once, at boot, and
+   * purges the log in the same pass — it is fully parsed here either way.
+   */
   private async restoreHistory(): Promise<void> {
-    if (!this.historyPath) return;
-    const byService = await loadHistory(this.historyPath, this.config.settings.historyLimit);
+    const path = this.historyPath;
+    if (!path) return;
+    // Through the same chain as every append: the HTTP server is already
+    // listening by the time this runs, so an action could otherwise land in the
+    // file between the compaction reading it and renaming the rewrite over it.
+    const restore = this.historyTail.then(() =>
+      compactHistory(path, {
+        historyLimit: this.config.settings.historyLimit,
+        retentionMs: this.config.settings.historyRetention,
+      }),
+    );
+    this.historyTail = restore.then(() => undefined);
+    const byService = await restore;
     for (const [id, history] of byService) {
       const record = this.records.get(id);
-      if (record) record.history = history;
+      if (!record) continue;
+      record.history = history;
+      record.lastAction = [...history].reverse().find((entry) => entry.action)?.action ?? null;
     }
   }
 
@@ -647,6 +841,36 @@ export class ServiceManager implements MonitorHost {
 
 /** Grace period between finishing an action and re-probing status. */
 const POST_ACTION_SETTLE_MS = 500;
+
+/** Appends between two runtime compactions of the persisted log. */
+const COMPACT_EVERY = 500;
+
+const ALERT_EVENT_LABEL: Record<AlertEventKind, string> = {
+  activated: 'alert',
+  escalated: 'escalated',
+  deescalated: 'de-escalated',
+  cleared: 'cleared',
+};
+
+function alertSeverity(kind: AlertEventKind, severity: AlertSeverity): HistorySeverity {
+  if (kind === 'cleared' || kind === 'deescalated') return 'info';
+  return severity === 'critical' ? 'error' : 'warning';
+}
+
+function stateSeverity(state: ServiceState): HistorySeverity {
+  if (state === 'failed') return 'error';
+  if (state === 'degraded' || state === 'unknown') return 'warning';
+  return 'info';
+}
+
+/**
+ * Whether a reload actually changed a service, rather than merely re-reading it.
+ * Compared as serialised data — `ResolvedService` is plain config, so a
+ * structural comparison is both correct and cheap enough at reload frequency.
+ */
+function definitionChanged(previous: ResolvedService, next: ResolvedService): boolean {
+  return JSON.stringify(previous) !== JSON.stringify(next);
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

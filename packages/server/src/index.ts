@@ -153,6 +153,8 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, 'shutting down');
     manager.stop();
+    // History writes are queued, not awaited, so drain them before exiting.
+    await manager.flush();
     await app.close();
     process.exit(0);
   };

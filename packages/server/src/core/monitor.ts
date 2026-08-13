@@ -54,6 +54,11 @@ export interface MonitorResult {
   sample?: ResourceSample | null;
   events: AlertEvent[];
   alerts: ResourceAlert[];
+  /**
+   * Why this tick could not measure, if it could not. Reported on every failing
+   * tick; the manager holds the previous value and records only the transition.
+   */
+  error?: string;
 }
 
 export interface MonitorHost {
@@ -221,14 +226,14 @@ export class ResourceMonitor {
 
     const context = target.context();
     let raw: ProviderSample | null = null;
-    let failed = false;
+    let failure: string | undefined;
     try {
       raw = target.provider.sample ? await target.provider.sample(context, batch) : null;
     } catch (error) {
       // Could not measure, as opposed to nothing to measure: `docker stats`
       // timed out, the daemon blinked, /proc vanished mid-read.
       this.log.warn({ err: error, service: id }, 'resource sampling failed');
-      failed = true;
+      failure = (error as Error).message;
     }
 
     const sample = raw ? this.toSample(id, raw, now) : null;
@@ -246,8 +251,8 @@ export class ResourceMonitor {
     // numbers because one `docker stats` timed out is worse than showing a value
     // from one interval ago. Alerts have their own staleness rule and clear
     // themselves after `staleAfterMs` if the failure persists.
-    if (!raw && !failed) this.counters.delete(id);
-    this.publish(id, failed ? undefined : sample, events, target);
+    if (!raw && !failure) this.counters.delete(id);
+    this.publish(id, failure ? undefined : sample, events, target, failure);
   }
 
   /** `undefined` sample means "leave whatever is stored alone" (paused). */
@@ -256,8 +261,9 @@ export class ResourceMonitor {
     sample: ResourceSample | null | undefined,
     events: AlertEvent[],
     target: MonitorTarget,
+    error?: string,
   ): void {
-    if (sample === undefined && events.length === 0) return;
+    if (sample === undefined && events.length === 0 && error === undefined) return;
     const result: MonitorResult = {
       id,
       type: target.service.type,
@@ -265,6 +271,7 @@ export class ResourceMonitor {
       alerts: this.tracker.activeFor(target.service.id),
     };
     if (sample !== undefined) result.sample = sample;
+    if (error !== undefined) result.error = error;
     this.host.applyMonitorResult(result);
   }
 
