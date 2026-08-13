@@ -25,7 +25,16 @@ import { stateStyle } from '../lib/status';
 import { StatusBadge, StatusIndicator } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
 import { containerOptionsFrom, LogPane } from './LogPane';
-import type { ActionDescriptor, ChildStatus, ResourceAlert, ServiceDetail, ServiceSummary } from '../lib/types';
+import type {
+  ActionDescriptor,
+  ChildStatus,
+  HistoryEntry,
+  HistoryKind,
+  HistorySeverity,
+  ResourceAlert,
+  ServiceDetail,
+  ServiceSummary,
+} from '../lib/types';
 
 type Tab = 'overview' | 'logs' | 'history' | 'config';
 
@@ -555,55 +564,106 @@ function ChildRow({ child }: { child: ChildStatus }) {
   );
 }
 
+const HISTORY_DOT: Record<HistorySeverity, string> = {
+  info: 'bg-st-running',
+  warning: 'bg-st-degraded',
+  error: 'bg-st-failed',
+};
+
+const HISTORY_KIND_LABEL: Record<HistoryKind, string> = {
+  action: 'action',
+  rejected: 'rejected',
+  alert: 'alert',
+  state: 'state',
+  probe: 'probe',
+  config: 'config',
+};
+
 function HistoryTab({ service }: { service: ServiceDetail }) {
   if (service.history.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
         <History className="size-6 text-faint" />
-        <p className="text-[14px] text-ink-2">No actions run yet</p>
-        <p className="text-[13px] text-faint">Actions triggered from Switchyard appear here with their output.</p>
+        <p className="text-[14px] text-ink-2">Nothing has happened yet</p>
+        <p className="text-[13px] text-faint">
+          Actions, alerts, state changes and probe failures appear here as they happen.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="h-full space-y-2 overflow-auto p-4">
-      {service.history.map((record, index) => (
-        <details
-          key={`${record.startedAt}-${index}`}
-          className="group rounded-xl border border-line-soft bg-surface-2/40 open:bg-surface-2/60"
-        >
-          <summary className="flex cursor-pointer items-center gap-2.5 px-3 py-2.5">
-            <span
-              className={clsx(
-                'size-1.5 shrink-0 rounded-full',
-                record.ok ? 'bg-st-running' : 'bg-st-failed',
-              )}
-            />
-            <span className="text-[13.5px] font-medium text-ink">{record.label}</span>
-            <span className="min-w-0 flex-1 truncate text-[13px] text-muted">{record.message}</span>
-            <span className="num shrink-0 text-[11.5px] text-faint">{formatDuration(record.durationMs)}</span>
-            <span className="num shrink-0 text-[11.5px] text-faint">{formatClock(record.startedAt)}</span>
-          </summary>
-          <div className="space-y-2 border-t border-line-soft px-3 py-2.5">
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-faint">
-              <span>
-                action <span className="mono text-ink-2">{record.actionId}</span>
-              </span>
-              <span>
-                exit <span className="num text-ink-2">{record.exitCode ?? '—'}</span>
-              </span>
-              <span>started {formatAgo(record.startedAt)}</span>
-            </div>
-            {record.excerpt && (
-              <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-2 text-faint">
-                {record.excerpt}
-              </pre>
-            )}
-          </div>
-        </details>
+      {service.history.map((entry, index) => (
+        <HistoryRow key={`${entry.at}-${index}`} entry={entry} />
       ))}
     </div>
+  );
+}
+
+function HistoryRow({ entry }: { entry: HistoryEntry }) {
+  const headline = (
+    <>
+      <span className={clsx('size-1.5 shrink-0 rounded-full', HISTORY_DOT[entry.severity])} />
+      <span className="text-[13.5px] font-medium text-ink">{entry.label}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px] text-muted">{entry.message}</span>
+      {entry.action && (
+        <span className="num shrink-0 text-[11.5px] text-faint">{formatDuration(entry.action.durationMs)}</span>
+      )}
+      <span className="num shrink-0 text-[11.5px] text-faint">{formatClock(entry.at)}</span>
+    </>
+  );
+
+  // Only actions and alerts carry anything worth unfolding; the rest say
+  // everything they have to say in one line, and a disclosure triangle that
+  // opens onto a repeat of the summary is worse than no triangle.
+  const details = entry.action ? (
+    <div className="space-y-2 border-t border-line-soft px-3 py-2.5">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-faint">
+        <span>
+          action <span className="mono text-ink-2">{entry.action.actionId}</span>
+        </span>
+        <span>
+          exit <span className="num text-ink-2">{entry.action.exitCode ?? '—'}</span>
+        </span>
+        <span>started {formatAgo(entry.at)}</span>
+      </div>
+      {entry.action.excerpt && (
+        <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-2 text-faint">
+          {entry.action.excerpt}
+        </pre>
+      )}
+    </div>
+  ) : entry.alert ? (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line-soft px-3 py-2.5 text-[12px] text-faint">
+      <span>
+        metric <span className="mono text-ink-2">{entry.alert.metric}</span>
+      </span>
+      <span>
+        measured <span className="num text-ink-2">{formatResource(entry.alert.value, entry.alert.unit)}</span>
+      </span>
+      <span>
+        {entry.alert.severity} threshold{' '}
+        <span className="num text-ink-2">{formatResource(entry.alert.threshold, entry.alert.unit)}</span>
+      </span>
+      <span>{formatAgo(entry.at)}</span>
+    </div>
+  ) : null;
+
+  if (!details) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl border border-line-soft bg-surface-2/40 px-3 py-2.5">
+        {headline}
+        <span className="shrink-0 text-[11.5px] text-faint">{HISTORY_KIND_LABEL[entry.kind]}</span>
+      </div>
+    );
+  }
+
+  return (
+    <details className="group rounded-xl border border-line-soft bg-surface-2/40 open:bg-surface-2/60">
+      <summary className="flex cursor-pointer items-center gap-2.5 px-3 py-2.5">{headline}</summary>
+      {details}
+    </details>
   );
 }
 

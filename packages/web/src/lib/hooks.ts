@@ -149,6 +149,10 @@ export function useEventStream(
         ?.find((entry) => entry.id === data.service.id);
       patchService(client, data.service);
       stateChangeHandler.current?.(previous, data.service);
+      // A state change writes a history entry, which lives on the detail query.
+      if (previous && previous.state !== data.service.state) {
+        void client.invalidateQueries({ queryKey: keys.service(data.service.id) });
+      }
     });
 
     on('service:checked', (data: { id: string; checkedAt: string }) => {
@@ -166,6 +170,7 @@ export function useEventStream(
     // the notifier can tell an activation from a recovery.
     on('resource:alert', (data: ResourceAlertEvent) => {
       alertHandler.current?.(data);
+      void client.invalidateQueries({ queryKey: keys.service(data.alert.serviceId) });
     });
 
     on('config:reload', () => {
