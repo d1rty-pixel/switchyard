@@ -7,6 +7,8 @@ import {
   serviceMonitoringSchema,
   MONITORING_DEFAULTS,
   MIN_INTERVAL_MS,
+  MIN_HISTORY_MS,
+  MAX_HISTORY_MS,
 } from '../src/config/monitoring.js';
 
 function parseGlobal(input: unknown) {
@@ -104,5 +106,29 @@ describe('monitoring configuration', () => {
     const resolved = resolveServiceMonitoring(parseGlobal(undefined), parseService(undefined));
     assert.equal(resolved.enabled, true);
     assert.deepEqual(resolved.thresholds, {});
+  });
+});
+
+describe('sample history retention', () => {
+  it('defaults to 30 minutes', () => {
+    assert.equal(parseGlobal({}).historyMs, MONITORING_DEFAULTS.historyMs);
+    assert.equal(MONITORING_DEFAULTS.historyMs, 1_800_000);
+  });
+
+  it('accepts a duration string', () => {
+    assert.equal(parseGlobal({ history: '2h' }).historyMs, 7_200_000);
+  });
+
+  it('clamps to the supported range', () => {
+    assert.equal(parseGlobal({ history: '1s' }).historyMs, MIN_HISTORY_MS);
+    assert.equal(parseGlobal({ history: '48h' }).historyMs, MAX_HISTORY_MS);
+  });
+
+  it('rejects a value without a unit', () => {
+    assert.equal(globalMonitoringSchema.safeParse({ history: '1800' }).success, false);
+  });
+
+  it('is global only — a service block may not set it', () => {
+    assert.equal(serviceMonitoringSchema.safeParse({ history: '10m' }).success, false);
   });
 });

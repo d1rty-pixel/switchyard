@@ -51,9 +51,18 @@ monitoring:
   for: 30s # default time a threshold must stay exceeded before alerting
   clearBelow: 0.9 # clear only below threshold × 0.9, so a value on the line cannot flap
   cooldown: 5m # minimum gap between repeat notifications per service and metric
+  # How far back samples are kept in memory, for the trend queries behind
+  # GET /api/services/:id/resources/history and the MCP get_resource_history
+  # tool. Nothing is written to disk, so a restart starts a fresh window. Memory
+  # is bounded twice over: by this window and by a hard per-service sample cap.
+  history: 30m
 
 # Directories scanned for per-service files (*.yaml / *.yml, non-recursive).
 # Defaults to ./services.d when the key is omitted; listed here for clarity.
+#
+# The directory is git-ignored apart from `00-switchyard.yaml`, which ships with
+# the repository so a fresh checkout has something on the dashboard. Everything
+# else you put here stays local — service definitions describe your own machine.
 serviceDirs:
   - services.d
 

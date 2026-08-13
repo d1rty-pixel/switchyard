@@ -14,6 +14,12 @@ dist/
 # provider live in examples/services.d/.
 services.d/*.yaml
 services.d/*.yml
+# Except the definitions Switchyard ships with: 00 manages the server itself and
+# is what keeps a fresh checkout from opening on an empty dashboard; 01 manages the
+# MCP daemon and is disabled by default. Deleting these negations makes the
+# dashboard empty after a clone, not just untidy.
+!services.d/00-switchyard.yaml
+!services.d/01-switchyard-mcp.yaml
 switchyard.local.yaml
 
 # Runtime state of the bundled examples

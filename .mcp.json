@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "switchyard": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PROJECT_DIR}/packages/mcp/dist/index.js"],
+      "env": {
+        "SWITCHYARD_URL": "${SWITCHYARD_URL:-http://127.0.0.1:7878}"
+      },
+      "timeout": 300000
+    }
+  }
+}

@@ -1,16 +1,22 @@
-# Switchyard managing itself — the `command` provider driving a hand-written
-# script, applied to Switchyard's own server process.
+# Shipped default: Switchyard managing itself.
 #
-# `npm start` runs the server in the foreground, so `scripts/switchyard-manage.sh`
-# detaches it via setsid and tracks it with a pid file, same as
-# 11-worker-script.yaml does for the sample worker.
+# The one file in `services.d/` that is tracked in git (see the negation in
+# .gitignore) — it is what keeps a fresh checkout from opening on an empty
+# dashboard. It needs no privileges, no Docker and no systemd, and every path in
+# it is relative to this file, so it works in any checkout on any machine.
+#
+# Everything else you add to this directory stays local and untracked. Delete this
+# file, or set `enabled: false` below, if you would rather not see it.
+#
+# The `command` provider drives `scripts/switchyard-manage.sh`: `npm start` runs
+# the server in the foreground, so the script detaches it with setsid and tracks
+# it through a pid file, the same way 11-worker-script.yaml handles the sample
+# worker.
 #
 # CAUTION: `stop`/`restart` kill the process handling the very request that
 # triggered them. The HTTP response usually still makes it out before the
 # SIGTERM lands, but this is inherently a bit racy — if it ever leaves things
 # stuck, run the script directly: scripts/switchyard-manage.sh restart
-#
-# Works in a fresh clone without editing.
 
 id: switchyard
 name: Switchyard
@@ -26,6 +32,21 @@ urls:
   - label: Dashboard
     url: http://127.0.0.1:7878/
     primary: true
+
+# Host-neutral on purpose, unlike the thresholds you will write for your own
+# services: these are absolute figures for a single Node process, and 100 % of one
+# core or half a gigabyte of resident memory is wrong for a dashboard on any
+# machine. The `command` provider measures the pid in the pid file and its
+# threads, so nothing else on the box can push these numbers up.
+monitoring:
+  cpu:
+    warning: 50%
+    critical: 100%
+    for: 1m
+  memory:
+    warning: 512MiB
+    critical: 1GiB
+    for: 1m
 
 provider:
   status:

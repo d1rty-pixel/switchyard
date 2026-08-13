@@ -10,6 +10,7 @@ import type {
 } from '../types.js';
 import type { ResourceAlert } from './alerts.js';
 import type { ResourceSample } from './resources.js';
+import type { ResolvedMonitoring } from '../config/monitoring.js';
 
 /** Card-level projection of a service. Kept small: it travels over SSE. */
 export interface ServiceSummary {
@@ -61,8 +62,12 @@ export interface ServiceDetail extends ServiceSummary {
   /** Names only — values are never sent to the browser. */
   envKeys: string[];
   providerConfig: unknown;
-  /** Effective thresholds after merging the global monitoring defaults. */
-  monitoringConfig: unknown;
+  /**
+   * Effective thresholds after merging the global monitoring defaults. Typed on
+   * the wire: an agent reading `/api/resources` has to compare values against
+   * these, and `unknown` made every consumer re-guess the shape.
+   */
+  monitoringConfig: ResolvedMonitoring;
 }
 
 const SECRET_KEY = /(pass|secret|token|credential|apikey|api_key|private)/i;
