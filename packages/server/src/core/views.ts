@@ -8,6 +8,8 @@ import type {
   ServiceState,
   UrlInfo,
 } from '../types.js';
+import type { ResourceAlert } from './alerts.js';
+import type { ResourceSample } from './resources.js';
 
 /** Card-level projection of a service. Kept small: it travels over SSE. */
 export interface ServiceSummary {
@@ -37,6 +39,13 @@ export interface ServiceSummary {
   supportsLogs: boolean;
   children?: { total: number; running: number };
   lastAction?: ActionRecord | null;
+
+  /** Latest per-service resource sample; null when nothing is measurable. */
+  resources: ResourceSample | null;
+  /** Active resource alerts, most severe first. */
+  alerts: ResourceAlert[];
+  /** Whether this service is being sampled at all. */
+  monitored: boolean;
 }
 
 /** Drawer-level projection: everything the summary has, plus diagnostics. */
@@ -52,6 +61,8 @@ export interface ServiceDetail extends ServiceSummary {
   /** Names only — values are never sent to the browser. */
   envKeys: string[];
   providerConfig: unknown;
+  /** Effective thresholds after merging the global monitoring defaults. */
+  monitoringConfig: unknown;
 }
 
 const SECRET_KEY = /(pass|secret|token|credential|apikey|api_key|private)/i;
@@ -81,4 +92,4 @@ export function childRollup(children?: ChildStatus[]): { total: number; running:
   };
 }
 
-export type { ActionDescriptor, ActionRecord, ChildStatus, Metric, PortInfo, UrlInfo };
+export type { ActionDescriptor, ActionRecord, ChildStatus, Metric, PortInfo, ResourceAlert, ResourceSample, UrlInfo };

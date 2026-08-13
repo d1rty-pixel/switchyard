@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { failureReason, firstMeaningfulLine, toCommandOutput } from '../core/exec.js';
+import type { ProviderSample, ResourceCounters } from '../core/resources.js';
 import type { ActionDescriptor, ActionOutcome, LogsResult, Metric, ServiceState, StatusResult } from '../types.js';
 import { splitLines, type Provider, type ProviderContext } from './types.js';
 
@@ -52,6 +53,19 @@ const SHOW_PROPERTIES = [
   'MemoryCurrent',
   'TasksCurrent',
 ] as const;
+
+/** Properties read by `sample()` — cheap, and only the ones it uses. */
+const SAMPLE_PROPERTIES = [
+  'ActiveState',
+  'MemoryCurrent',
+  'MemoryMax',
+  'CPUUsageNSec',
+  'IOReadBytes',
+  'IOWriteBytes',
+] as const;
+
+/** Unit states in which resource numbers describe the current run. */
+const ACTIVE_STATES = new Set(['active', 'activating', 'reloading', 'deactivating']);
 
 const VERB_META: Record<Verb, { label: string; kind: ActionDescriptor['kind']; icon: string; enabledIn?: ServiceState[] }> = {
   start: { label: 'Start', kind: 'primary', icon: 'play', enabledIn: ['stopped', 'failed', 'unknown'] },
@@ -177,11 +191,10 @@ export const systemdProvider: Provider<SystemdConfig> = {
       warnings.push(`systemd has restarted this unit ${restarts} time(s)`);
     }
 
-    const memory = Number.parseInt(props.MemoryCurrent ?? '', 10);
-    if (Number.isInteger(memory) && memory > 0) {
-      metrics.push({ label: 'Memory', value: String(memory), kind: 'bytes', highlight: true });
-    }
-
+    // Memory is deliberately *not* a status metric any more: the resource
+    // sampler reports it as a monitored metric with thresholds and history, and
+    // showing the same number twice in two different visual languages on the same
+    // card is noise. The raw property is still below in `raw`.
     const tasks = Number.parseInt(props.TasksCurrent ?? '', 10);
     if (Number.isInteger(tasks) && tasks > 0) {
       metrics.push({ label: 'Tasks', value: String(tasks), kind: 'number' });
@@ -239,6 +252,60 @@ export const systemdProvider: Provider<SystemdConfig> = {
     };
   },
 
+  /**
+   * Resource sampling from the unit's own cgroup.
+   *
+   * systemd is the authoritative attribution here: `MemoryCurrent` and
+   * `CPUUsageNSec` cover the unit *and every process it spawned*, which is
+   * exactly the boundary a service card should show.
+   *
+   * Not reported:
+   *  - network — systemd has no per-unit network accounting at all;
+   *  - disk I/O unless `IOAccounting=yes` is set for the unit. Without it
+   *    `IOReadBytes` reads `[not set]` and the metric stays absent rather than
+   *    being reported as zero. Switchyard does not touch unit files to turn it
+   *    on; that is a change to the unit's own configuration.
+   */
+  async sample(context): Promise<ProviderSample | null> {
+    const { config } = context;
+    const result = await context.exec({
+      argv: [
+        config.systemctlPath,
+        ...scopeArgs(config),
+        'show',
+        unitName(config),
+        '--no-pager',
+        `--property=${SAMPLE_PROPERTIES.join(',')}`,
+      ],
+      label: `${context.service.id}:sample`,
+    });
+    if (!result.ok) return null;
+
+    const props = parseShowOutput(result.stdout);
+    // A unit that is not running has no consumption worth reporting; leftover
+    // counters from its last run would read as current usage.
+    if (!ACTIVE_STATES.has(props.ActiveState ?? '')) return null;
+
+    const sample: ProviderSample = {
+      attribution: 'systemd cgroup — the unit and all processes it spawned',
+    };
+    const memory = systemdNumber(props.MemoryCurrent);
+    if (memory !== undefined) sample.memoryBytes = memory;
+    const limit = systemdNumber(props.MemoryMax);
+    if (limit !== undefined) sample.memoryLimitBytes = limit;
+
+    const counters: ResourceCounters = {};
+    const cpuNanos = systemdNumber(props.CPUUsageNSec);
+    if (cpuNanos !== undefined) counters.cpuNanos = cpuNanos;
+    const read = systemdNumber(props.IOReadBytes);
+    if (read !== undefined) counters.diskReadBytes = read;
+    const written = systemdNumber(props.IOWriteBytes);
+    if (written !== undefined) counters.diskWriteBytes = written;
+    if (Object.keys(counters).length > 0) sample.counters = counters;
+
+    return sample;
+  },
+
   async logs(context, options): Promise<LogsResult> {
     const { config } = context;
     const argv = [
@@ -276,6 +343,19 @@ export const systemdProvider: Provider<SystemdConfig> = {
     };
   },
 };
+
+/**
+ * Numeric `systemctl show` property, or undefined.
+ *
+ * systemd reports unavailable accounting as `[not set]` and "no limit" as
+ * `infinity`; both mean "no number", and turning either into 0 would invent a
+ * measurement that was never taken.
+ */
+function systemdNumber(value?: string): number | undefined {
+  if (!value || value === '[not set]' || value === 'infinity') return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
 
 /** `systemctl show` prints `Key=Value` lines; values may contain `=`. */
 function parseShowOutput(stdout: string): Record<string, string> {

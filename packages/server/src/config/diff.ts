@@ -58,6 +58,7 @@ function fingerprint(service: ResolvedService): string {
     timeout: service.timeout,
     enabled: service.enabled,
     hidden: service.hidden,
+    monitoring: service.monitoring,
     provider: service.provider,
   });
 }

@@ -2,6 +2,9 @@ import { execCommand, trimForWire, type ExecFn, type ExecRequest } from './exec.
 import { conflict, notFound, unsupported } from './errors.js';
 import { appendHistory, loadHistory } from './history-store.js';
 import { logger, type Logger } from './logger.js';
+import { alertDigest, type ResourceAlert } from './alerts.js';
+import { ResourceMonitor, type MonitorHost, type MonitorResult, type MonitorTarget } from './monitor.js';
+import { resourceDigest, type ResourceSample } from './resources.js';
 import { childRollup, redact, type ServiceDetail, type ServiceSummary } from './views.js';
 import type { EventBus } from './events.js';
 import type { LoadedConfig } from '../config/load.js';
@@ -39,6 +42,10 @@ interface ServiceRecord {
   checking: boolean;
   busy: { actionId: string; label: string; startedAt: string } | null;
   history: ActionRecord[];
+  /** Latest resource sample, or null when the service reports none. */
+  resources: ResourceSample | null;
+  /** Active resource alerts for this service. */
+  alerts: ResourceAlert[];
   /** Serialised last emitted summary, used to suppress no-op SSE traffic. */
   lastEmitted: string | null;
 }
@@ -51,12 +58,13 @@ export interface ActionResponse {
   service: ServiceSummary;
 }
 
-export class ServiceManager {
+export class ServiceManager implements MonitorHost {
   private records = new Map<string, ServiceRecord>();
   private config: LoadedConfig;
   private timer: NodeJS.Timeout | null = null;
   private stopped = false;
   private readonly log: Logger;
+  private readonly monitor: ResourceMonitor;
 
   constructor(
     config: LoadedConfig,
@@ -67,6 +75,11 @@ export class ServiceManager {
     this.config = config;
     this.log = logger.child({ module: 'manager' });
     this.applyConfig(config);
+    this.monitor = new ResourceMonitor(
+      this,
+      { intervalMs: config.monitoring.intervalMs, concurrency: config.settings.statusConcurrency },
+      this.log,
+    );
   }
 
   // ── configuration ───────────────────────────────────────────────────────────
@@ -79,16 +92,21 @@ export class ServiceManager {
       const provider = getProvider(service.type);
       if (!provider) continue; // impossible: validated during load
       const existing = previous.get(service.id);
+      const sameProvider = existing?.service.type === service.type;
       next.set(service.id, {
         service,
         provider,
         actions: this.buildActions(provider, service),
-        status: existing?.service.type === service.type ? existing.status : null,
+        status: sameProvider ? existing.status : null,
         statusError: existing?.statusError ?? null,
         lastCheckedAt: existing?.lastCheckedAt ?? null,
         checking: false,
         busy: existing?.busy ?? null,
         history: existing?.history ?? [],
+        // A different provider measures different things, so its samples do not
+        // carry over. Counter state is dropped by the monitor for the same reason.
+        resources: sameProvider ? existing.resources : null,
+        alerts: sameProvider ? existing.alerts : [],
         lastEmitted: null,
       });
     }
@@ -105,7 +123,12 @@ export class ServiceManager {
         `cannot reload while actions are running: ${busy.map((record) => record.service.id).join(', ')}`,
       );
     }
+    const before = new Set(this.records.keys());
     this.applyConfig(config);
+    // Alerts and counter state for services the reload removed have no owner
+    // left; clearing them also emits the closing `resource:alert` events.
+    this.monitor.forget([...before].filter((id) => !this.records.has(id)));
+    this.monitor.reconfigure(config.monitoring.intervalMs);
     this.log.info({ services: config.services.length, path: config.path }, 'configuration reloaded');
     this.bus.emit({ type: 'config:reload', services: config.services.length, at: new Date().toISOString() });
     await this.refreshAll();
@@ -163,6 +186,7 @@ export class ServiceManager {
       source: record.service.source,
       envKeys: Object.keys(record.service.env),
       providerConfig: redact(record.service.provider),
+      monitoringConfig: record.service.monitoring,
     };
   }
 
@@ -201,6 +225,10 @@ export class ServiceManager {
       supportsLogs: record.provider.supportsLogs({ service, config: service.provider }),
       children: childRollup(status?.children),
       lastAction: record.history.at(-1) ?? null,
+
+      resources: record.resources,
+      alerts: record.alerts,
+      monitored: service.monitoring.enabled && record.provider.sample !== undefined,
     };
   }
 
@@ -256,9 +284,23 @@ export class ServiceManager {
     this.emitIfChanged(record);
   }
 
+  /**
+   * Pushes a summary only when something a viewer would notice changed.
+   *
+   * Resource samples are the reason this needs care: CPU and I/O rates differ on
+   * *every* tick, so including them verbatim would emit a full service update
+   * per service per sampling interval and re-render numbers that moved by 0.3 %.
+   * They enter the fingerprint through a quantized digest instead — a real
+   * change in load still pushes an update, noise does not.
+   */
   private emitIfChanged(record: ServiceRecord): void {
     const summary = this.toSummary(record);
-    const fingerprint = JSON.stringify({ ...summary, lastCheckedAt: null });
+    const fingerprint = JSON.stringify({
+      ...summary,
+      lastCheckedAt: null,
+      resources: resourceDigest(record.resources),
+      alerts: alertDigest(record.alerts),
+    });
     if (fingerprint === record.lastEmitted) return;
     record.lastEmitted = fingerprint;
     this.bus.emit({ type: 'service:update', service: summary });
@@ -279,6 +321,66 @@ export class ServiceManager {
     };
 
     await Promise.all(Array.from({ length: limit }, worker));
+  }
+
+  // ── resource monitoring ─────────────────────────────────────────────────────
+
+  /** MonitorHost: the services the sampler should look at on this tick. */
+  monitorTargets(): MonitorTarget[] {
+    return [...this.records.values()]
+      .filter((record) => record.provider.sample !== undefined)
+      .map((record) => ({
+        service: record.service,
+        provider: record.provider,
+        monitoring: record.service.monitoring,
+        busy: record.busy !== null,
+        context: () => this.context(record),
+      }));
+  }
+
+  /** MonitorHost: fold a finished sample and its alert transitions back in. */
+  applyMonitorResult(result: MonitorResult): void {
+    const record = this.records.get(result.id);
+    // A reload may have dropped the service, or swapped its provider, while the
+    // sample was in flight — a sample taken through a different provider measures
+    // something else and is discarded. The alert events still go out either way,
+    // so no alert lingers in the UI for a service that no longer reports it.
+    const current = record?.service.type === result.type ? record : undefined;
+    if (current) {
+      if (result.sample !== undefined) current.resources = result.sample;
+      current.alerts = result.alerts;
+    }
+
+    for (const event of result.events) {
+      this.log[event.alert.severity === 'critical' ? 'warn' : 'info'](
+        {
+          service: event.alert.serviceId,
+          metric: event.alert.metric,
+          severity: event.alert.severity,
+          value: event.alert.value,
+          threshold: event.alert.threshold,
+        },
+        `resource alert ${event.kind}`,
+      );
+      this.bus.emit({
+        type: 'resource:alert',
+        event: event.kind,
+        alert: event.alert,
+        notify: event.notify,
+        reason: event.reason,
+      });
+    }
+
+    if (record) this.emitIfChanged(record);
+  }
+
+  /** Every active resource alert, most severe first. */
+  activeAlerts(): ResourceAlert[] {
+    return this.monitor.activeAlerts();
+  }
+
+  get monitorIntervalMs(): number {
+    return this.monitor.sampleIntervalMs;
   }
 
   // ── actions ─────────────────────────────────────────────────────────────────
@@ -388,6 +490,11 @@ export class ServiceManager {
     await this.refreshAll();
     this.bus.emit({ type: 'ready', at: new Date().toISOString() });
     this.schedule();
+    // Started unconditionally: `monitoring.enabled: false` is already reflected in
+    // every service's resolved monitoring, so the sampler simply finds no targets.
+    // Gating the loop itself here instead would leave it dead after a reload that
+    // switches monitoring back on.
+    this.monitor.start();
   }
 
   /** Replays persisted history into the in-memory records once, at boot. */
@@ -414,6 +521,7 @@ export class ServiceManager {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    this.monitor.stop();
   }
 }
 

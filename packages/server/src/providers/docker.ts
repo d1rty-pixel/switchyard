@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { failureReason, firstMeaningfulLine, toCommandOutput } from '../core/exec.js';
+import { findStatsRow, statsRowToSample } from '../core/sample-batch.js';
+import type { ProviderSample } from '../core/resources.js';
 import type {
   ActionDescriptor,
   ActionOutcome,
@@ -209,6 +211,23 @@ export const dockerProvider: Provider<DockerConfig> = {
       ports,
       output: toCommandOutput(result),
     };
+  },
+
+  /**
+   * Resource sampling from the batched `docker stats` reading.
+   *
+   * The container is looked up in the shared per-tick result instead of running
+   * `docker stats` for this one container: one daemon round trip serves every
+   * Docker and Compose service on the host.
+   */
+  async sample(context, batch): Promise<ProviderSample | null> {
+    const { config } = context;
+    const stats = await batch.dockerStats(config.dockerPath, context.execRaw);
+    const row = findStatsRow(stats, config.container);
+    // No row means the container is not running — docker stats only lists live
+    // containers — so there is nothing to attribute to this service.
+    if (!row) return null;
+    return statsRowToSample(row, 'docker stats — container cgroup');
   },
 
   async runAction(context, descriptor): Promise<ActionOutcome> {
