@@ -1,0 +1,12 @@
+{
+  // Typechecks the tests alongside the sources without emitting them into dist,
+  // mirroring packages/server: the build config has `rootDir: src`, which cannot
+  // cover a sibling directory.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}
