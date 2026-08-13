@@ -128,3 +128,85 @@ describe('the shipped service definition', () => {
     }
   });
 });
+
+describe('the shipped MCP service definition', () => {
+  const file = 'services.d/01-switchyard-mcp.yaml';
+
+  it('ships enabled, so the MCP endpoint is on the dashboard from the first start', async () => {
+    const config = await loadConfig(configPath);
+    const service = config.services.find((entry) => entry.id === 'switchyard-mcp');
+    assert.ok(service, 'the MCP daemon is part of the default installation');
+    assert.ok(!config.disabled.some((entry) => entry.id === 'switchyard-mcp'));
+  });
+
+  it('is manageable: status, logs and a full action set', async () => {
+    const config = await loadConfig(configPath);
+    const service = config.services.find((entry) => entry.id === 'switchyard-mcp');
+    const provider = service?.provider as {
+      status?: unknown;
+      logs?: unknown;
+      pidFile?: string;
+      actions?: { id: string; confirm?: boolean }[];
+    };
+    assert.ok(provider.status, 'needs a status probe to appear as running or stopped');
+    assert.ok(provider.logs, 'needs a log source');
+    assert.equal(provider.pidFile, '.state/switchyard-mcp.pid');
+    assert.deepEqual(provider.actions?.map((action) => action.id), ['start', 'stop', 'restart']);
+    // Stopping it disconnects whatever client is using the endpoint.
+    assert.equal(provider.actions?.find((action) => action.id === 'stop')?.confirm, true);
+  });
+
+  it('only ever points the endpoint at loopback', async () => {
+    // Shipping this enabled is defensible only because the listener cannot be
+    // exposed; the URLs in the definition must not suggest otherwise.
+    const raw = await readFile(resolve(repoRoot, file), 'utf8');
+    for (const match of raw.matchAll(/https?:\/\/([^/\s'"]+)/g)) {
+      const authority = match[1] ?? '';
+      assert.match(authority, /^(127\.\d+\.\d+\.\d+|localhost|\[::1\])(:\d+)?$/, `${authority} is not loopback`);
+    }
+  });
+
+  it('passes no bind address to the daemon, leaving the hard-coded default', async () => {
+    // Comments stripped: the header explains *why* there is no allowRemoteBind
+    // equivalent, and that sentence must not fail the assertion about the argv.
+    const raw = await readFile(resolve(repoRoot, file), 'utf8');
+    const body = raw
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#'))
+      .join('\n');
+    assert.doesNotMatch(body, /--host/);
+    assert.doesNotMatch(body, /allowRemoteBind/);
+  });
+
+  it('is tracked alongside the other shipped definition', () => {
+    assert.ok(existsSync(resolve(repoRoot, file)));
+  });
+
+  it('drives the management script that actually exists', async () => {
+    const raw = await readFile(resolve(repoRoot, file), 'utf8');
+    for (const match of raw.matchAll(/run:\s*\[([^,\]]+)/g)) {
+      const script = (match[1] ?? '').trim();
+      if (!script.startsWith('scripts/')) continue;
+      assert.ok(existsSync(resolve(repoRoot, script)), `${script} referenced but missing`);
+    }
+  });
+
+  it('carries host-neutral thresholds, like the server\'s own definition', async () => {
+    const config = await loadConfig(configPath);
+    const service = config.services.find((entry) => entry.id === 'switchyard-mcp');
+    assert.equal(service?.type, 'command');
+    assert.equal(service?.monitoring.thresholds.cpu?.critical, 75);
+    assert.equal(service?.monitoring.thresholds.memory?.critical, 536_870_912);
+  });
+
+  it('names the same port the install script and the endpoint URL use', async () => {
+    const definition = await readFile(resolve(repoRoot, file), 'utf8');
+    const installer = await readFile(resolve(repoRoot, 'scripts/switchyard-mcp-install.sh'), 'utf8');
+    const manager = await readFile(resolve(repoRoot, 'scripts/switchyard-mcp-manage.sh'), 'utf8');
+    // Drifting these apart silently produces a service definition that probes a
+    // daemon nobody is running.
+    assert.match(definition, /7879/);
+    assert.match(installer, /SWITCHYARD_MCP_PORT:-7879/);
+    assert.match(manager, /SWITCHYARD_MCP_PORT:-7879/);
+  });
+});
