@@ -126,7 +126,9 @@ describe('list_services', () => {
   it('filters by state, group and tag', async () => {
     assert.match(await callText('list_services', { state: 'running' }), /1 of 2 service\(s\) matching state=running/);
     assert.match(await callText('list_services', { group: 'development' }), /sample-worker/);
-    assert.match(await callText('list_services', { tag: 'antivirus' }), /antivirus/);
+    // Asserted on the count, not on the id: the service is both named and tagged
+    // `antivirus`, so matching the id alone would pass on the echoed filter too.
+    assert.match(await callText('list_services', { tag: 'antivirus' }), /1 of 2 service\(s\) matching tag=antivirus/);
   });
 
   it('says so when a filter matches nothing', async () => {
