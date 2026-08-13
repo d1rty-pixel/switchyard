@@ -129,7 +129,8 @@ settings:
   statusIntervalMs: 6000       # background status poll
   commandTimeoutMs: 30000      # default per-command timeout
   logsTail: 200
-  historyLimit: 25
+  historyLimit: 100            # history entries kept per service
+  historyRetention: 30d        # how long a persisted entry survives
   statusConcurrency: 4
   allowRemoteBind: false       # refuse non-loopback binds unless true
 monitoring:                    # resource sampling defaults, see below
@@ -384,13 +385,45 @@ average, p95, latest, sample count, the span actually covered — plus the share
 samples above each threshold and a bucketed series whose length is fixed no matter
 how long a window is asked for.
 
-Nothing is written to disk: action history records something a person did and is
+Nothing is written to disk: the service history below records events and is
 persisted, whereas samples are a live projection of the machine, so a restart
 simply starts a fresh window. Memory is bounded twice, by the retention window and
 by a hard per-service cap of 2000 samples, so a short `interval` with a long
 `history` cannot grow without limit. A service whose provider changes on a config
 reload has its history dropped — the old series measured something else, with a
 different attribution.
+
+### History
+
+Every service keeps a history of what happened to it, not only of what someone
+clicked. Six kinds of entry:
+
+| Kind | Written when |
+| --- | --- |
+| `action` | an action finished, successfully or not — with its exit code and stderr excerpt |
+| `rejected` | an action was refused: unknown id, or one was already running |
+| `alert` | a resource alert activated, escalated, de-escalated or cleared |
+| `state` | the reported state changed, e.g. `running → failed` |
+| `probe` | the status probe or the resource sampler started failing, or recovered |
+| `config` | a reload added, removed or changed this service's definition |
+
+`state` and `probe` entries are written on **transitions only**. A service that has
+been failing for an hour is one entry, not one per status poll; the first probe
+after a restart establishes a baseline rather than reporting a change nobody made.
+Alerts need no such rule of their own — `for`, `cooldown` and the `clearBelow`
+hysteresis already decide what counts as news. A reload that changes nothing
+writes nothing.
+
+`settings.historyLimit` (default 100) bounds the entries kept per service, in
+memory and on disk. The log lives in `.state/history.jsonl` next to the config
+file and is replayed at startup, so history survives a restart. Writes are
+append-only; entries older than `settings.historyRetention` (default `30d`), and
+anything over the per-service limit, are purged when the file is compacted — at
+every startup, and again after every 500 appends so a server left running for
+weeks still shrinks. Compaction writes a temporary file and renames it over the
+original, so an interrupted purge leaves the old log intact. Logs written by
+earlier versions, which recorded actions and nothing else, are read as `action`
+entries with no migration step.
 
 ## Using the dashboard
 
@@ -410,7 +443,8 @@ different attribution.
   on narrow viewports rather than reflowing.
 * **Drawer** — click a service: full status metrics, live resource usage with its
   attribution and active alerts, container list, endpoints, raw probe output, log
-  tail, action history with output, and the service definition (including which
+  tail, the service history — actions with their output, alerts, state changes,
+  probe failures, config changes — and the service definition (including which
   file it came from and the effective monitoring thresholds).
 * **Actions** — destructive ones ask for confirmation; while one runs, every
   control for that service is locked and the card shows a transitional state.
@@ -432,7 +466,7 @@ dashed ring (unknown).
 | `GET` | `/api/alerts` | active resource alerts, most severe first |
 | `GET` | `/api/resources` | per-service measurements with units, thresholds and threshold state (`?service=`, `?sort=cpu`, `?limit=`) |
 | `GET` | `/api/services/:id/resources/history` | trend: statistics and a bucketed series (`?window=15m`, `?buckets=30`) |
-| `GET` | `/api/services/:id` | detail: children, history, raw probe, definition |
+| `GET` | `/api/services/:id` | detail: children, history (actions, alerts, state changes, probe failures, config changes), raw probe, definition |
 | `POST` | `/api/services/:id/actions/:action` | run an action |
 | `POST` | `/api/services/:id/refresh` | re-probe now |
 | `GET` | `/api/services/:id/logs?tail=200` | log tail |
@@ -532,7 +566,7 @@ path. See [`docs/PRIVILEGES.md`](docs/PRIVILEGES.md).
 | --- | --- |
 | `switchyard_server_info` | version, uptime, config path, providers, groups, warnings, monitoring settings, host CPU/RAM |
 | `list_services` | compact roster: state, provider, group, alert count, runnable action ids |
-| `get_service` | one service in full: status, children, endpoints, actions, history, definition source |
+| `get_service` | one service in full: status, children, endpoints, actions, recent activity, definition source |
 | `get_resource_usage` | CPU/memory/disk/network per service with units, sample age, thresholds, threshold state |
 | `get_resource_history` | min/max/avg/p95/latest, share of samples over each threshold, bucketed series |
 | `get_alerts` | active alerts with value, threshold, breach start and duration |

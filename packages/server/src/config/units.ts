@@ -10,15 +10,15 @@ import { z } from 'zod';
  * file wanted bytes, kilobytes or mebibytes.
  */
 
-/** `500ms`, `30s`, `5m`, `2h`, and compound forms like `1m30s`. */
-const DURATION_UNITS: Record<string, number> = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000 };
+/** `500ms`, `30s`, `5m`, `2h`, `30d`, and compound forms like `1m30s`. */
+const DURATION_UNITS: Record<string, number> = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 };
 
 export function parseDuration(input: string): number {
   const text = input.trim();
   if (text === '') throw new Error('empty duration');
 
   // A fresh regex per call: a shared /g/ one carries lastIndex between calls.
-  const part = /(\d+(?:\.\d+)?)(ms|s|m|h)/gi;
+  const part = /(\d+(?:\.\d+)?)(ms|s|m|h|d)/gi;
   let consumed = 0;
   let total = 0;
   let previousUnit = Number.POSITIVE_INFINITY;
@@ -38,7 +38,7 @@ export function parseDuration(input: string): number {
   }
 
   if (consumed !== text.length || total <= 0) {
-    throw new Error(`invalid duration "${input}": expected a value with a unit, e.g. 500ms, 30s, 5m, 2h`);
+    throw new Error(`invalid duration "${input}": expected a value with a unit, e.g. 500ms, 30s, 5m, 2h, 30d`);
   }
   return Math.round(total);
 }

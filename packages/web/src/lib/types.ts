@@ -70,6 +70,30 @@ export interface ActionRecord {
   excerpt?: string;
 }
 
+export type HistoryKind = 'action' | 'rejected' | 'alert' | 'state' | 'probe' | 'config';
+export type HistorySeverity = 'info' | 'warning' | 'error';
+
+/** One thing that happened to a service. Payload members follow `kind`. */
+export interface HistoryEntry {
+  kind: HistoryKind;
+  at: string;
+  severity: HistorySeverity;
+  label: string;
+  message: string;
+  action?: ActionRecord;
+  alert?: HistoryAlert;
+  state?: { from: ServiceState; to: ServiceState };
+}
+
+export interface HistoryAlert {
+  event: AlertEventKind;
+  metric: ResourceMetric;
+  severity: AlertSeverity;
+  value: number;
+  threshold: number;
+  unit: ResourceUnit;
+}
+
 export interface ChildStatus {
   id: string;
   name: string;
@@ -174,7 +198,7 @@ export interface ServiceSummary {
 export interface ServiceDetail extends ServiceSummary {
   statusDetail?: string;
   childStatuses: ChildStatus[];
-  history: ActionRecord[];
+  history: HistoryEntry[];
   raw?: Record<string, string>;
   lastProbe?: CommandOutput;
   workdir?: string;

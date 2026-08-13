@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { globalMonitoringSchema, serviceMonitoringSchema } from './monitoring.js';
+import { durationSchema } from './units.js';
 
 /**
  * Zod schemas for `switchyard.yaml`.
@@ -62,8 +63,10 @@ export const settingsSchema = z
     commandTimeoutMs: z.number().int().min(500).max(600_000).default(30_000),
     /** How many log lines the logs endpoint returns by default. */
     logsTail: z.number().int().min(10).max(5_000).default(200),
-    /** Per-service action history kept in memory. */
-    historyLimit: z.number().int().min(1).max(200).default(25),
+    /** Per-service history entries kept in memory and replayed from disk. */
+    historyLimit: z.number().int().min(1).max(500).default(100),
+    /** How long a persisted history entry survives before it is purged. */
+    historyRetention: durationSchema.default('30d'),
     /** How many status probes may run at once. */
     statusConcurrency: z.number().int().min(1).max(32).default(4),
     /**

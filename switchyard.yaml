@@ -22,7 +22,8 @@ settings:
   statusIntervalMs: 6000 # background status poll
   commandTimeoutMs: 30000 # default per-command timeout
   logsTail: 200
-  historyLimit: 25
+  historyLimit: 100 # history entries kept per service
+  historyRetention: 30d # how long a persisted entry survives
   statusConcurrency: 4
 
 # Resource monitoring defaults. Sampling runs on its own interval, separate from

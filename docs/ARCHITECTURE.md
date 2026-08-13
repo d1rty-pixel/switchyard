@@ -21,7 +21,7 @@ and the YAML files are the source of truth.
                           ├──────────────────────────────────────────┤
                           │ core/manager.ts  status cache, polling,  │
                           │                  per-service lock,       │
-                          │                  action history, events  │
+                          │                  service history, events │
                           ├──────────────────────────────────────────┤
                           │ core/monitor.ts  resource sampler, own   │
                           │  + alerts.ts     interval, counter state,│
@@ -85,7 +85,7 @@ An action:
    for that service disabled.
 4. `provider.runAction()` runs the configured argv. stdout/stderr, exit code and
    duration are captured.
-5. The outcome is appended to the in-memory history, `action:end` is emitted, and
+5. The outcome is appended to the service history, `action:end` is emitted, and
    after a 500 ms settle delay the status is re-probed — signals like
    `nginx -s quit` return before the process is actually gone.
 6. The response carries the outcome *and* the fresh service summary, so the card
@@ -126,7 +126,7 @@ packages/server/src
 ├── core/
 │   ├── exec.ts           the single spawn() choke point
 │   ├── manager.ts        registry, status cache, polling, locking, history
-│   ├── history-store.ts  append-only action history log, replayed on boot
+│   ├── history-store.ts  service history log, replayed and purged on boot
 │   ├── resources.ts      resource model, counter→rate maths, sample digest
 │   ├── monitor.ts        the sampling loop and its per-service counter state
 │   ├── sample-batch.ts   per-tick batched docker stats / docker ps
@@ -223,9 +223,9 @@ a per-service ring of samples. It is bounded by the configured retention *and* b
 hard cap of 2000 samples per service, because the retention is a time and the
 interval can be as low as 2 s. Only root values are kept — retaining the
 per-container breakdown would multiply the set by the size of a compose project for
-a view nothing asks of history. Nothing is persisted: action history records what a
-person did, whereas samples are a projection of the machine, and a restart starting
-a fresh window is honest rather than lossy. Statistics live on the server because
+a view nothing asks of history. Nothing is persisted: the service history records
+discrete events, whereas samples are a projection of the machine, and a restart
+starting a fresh window is honest rather than lossy. Statistics live on the server because
 deciding what "above the warning threshold" means requires the resolved thresholds,
 which only this process has.
 
@@ -265,10 +265,28 @@ including them verbatim in the service-summary fingerprint would push an update
 per service per interval. They enter it as a quantized digest (5 % CPU, 32 MiB
 memory, 1 MiB/s rates) instead: real movement is pushed, noise is not.
 
-**Status is a live projection.** Every card is rebuilt from the last probe plus
-the busy flag; only action history survives a restart, replayed from the
-append-only `.state/history.jsonl` log next to the config file (see
-`core/history-store.ts`).
+**Status is a live projection, but events are not.** Every card is rebuilt from the
+last probe plus the busy flag. What *happened* cannot be rebuilt that way, so the
+service history is the one thing that survives a restart, replayed from the
+`.state/history.jsonl` log next to the config file (see `core/history-store.ts`).
+It holds more than actions: alerts, state changes, probe failures and config
+changes go in too, because an alert that fired while no dashboard tab was open
+otherwise leaves nothing behind but a log line.
+
+**History records transitions, not conditions.** A service failing for an hour is
+one entry, not one per status poll — the manager holds the previous state and the
+previous probe error and writes only when either flips. Resource alerts need no
+such rule of their own: `for`, `cooldown` and the `clearBelow` hysteresis in
+`core/alerts.ts` already decide what counts as news, so the manager records every
+`AlertEvent` it is handed.
+
+**The log is append-only between compactions, never rewritten on write.** Appends
+are chained through one promise so two services finishing at once cannot interleave
+their lines, and no action waits on the disk. The file is purged — by age and by
+the per-service limit — at startup, where it is fully parsed anyway, and again
+after every 500 appends so a process that runs for weeks still shrinks. The purge
+writes a temporary file and renames it over the original, so an interrupted
+compaction costs nothing.
 
 **Animation belongs in CSS, and stops when the tab is hidden.** This is a tool
 that lives on a second monitor, so it spends most of its life in a background

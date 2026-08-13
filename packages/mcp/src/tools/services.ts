@@ -3,7 +3,13 @@ import { ageOf, formatDuration, formatMetric, lines, table } from '../format.js'
 import { guard, serviceIdParam, textResult, type ToolResult } from './shared.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { SwitchyardClient } from '../client.js';
-import type { ActionDescriptor, ServiceDetail, ServiceState, ServiceSummary } from '../wire.js';
+import type {
+  ActionDescriptor,
+  HistoryEntry,
+  ServiceDetail,
+  ServiceState,
+  ServiceSummary,
+} from '../wire.js';
 
 /**
  * The service roster and one service in full.
@@ -54,7 +60,7 @@ export function registerServiceTools(server: McpServer, client: SwitchyardClient
       description:
         'Everything Switchyard knows about one service: status detail, provider metrics, ' +
         'containers or child units, endpoints, resource sample with its thresholds, active ' +
-        'alerts, recent action history and the config file it came from.',
+        'alerts, recent activity history and the config file it came from.',
       inputSchema: { service: serviceIdParam },
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
@@ -190,20 +196,21 @@ function detailResult(detail: ServiceDetail): ToolResult {
       ),
       '* needs confirm: true in run_action',
     ),
-    section(
-      'Recent actions',
-      detail.history
-        .slice(0, 5)
-        .map(
-          (record) =>
-            `${record.startedAt} ${record.actionId} ${record.ok ? 'ok' : 'FAILED'} ` +
-            `(${formatDuration(record.durationMs)}${record.exitCode === null || record.exitCode === undefined ? '' : `, exit ${record.exitCode}`}) ${record.message}`,
-        ),
-    ),
+    section('Recent activity', detail.history.slice(0, 8).map(historyLine)),
     detail.supportsLogs ? 'Logs available — call get_logs.' : 'This service exposes no logs.',
   );
 
   return textResult(text, { service: detail as unknown as Record<string, unknown> });
+}
+
+function historyLine(entry: HistoryEntry): string {
+  const action = entry.action;
+  const suffix = action
+    ? ` (${formatDuration(action.durationMs)}${
+        action.exitCode === null || action.exitCode === undefined ? '' : `, exit ${action.exitCode}`
+      })`
+    : '';
+  return `${entry.at} [${entry.kind}/${entry.severity}] ${entry.label}${suffix}: ${entry.message}`;
 }
 
 function resourceSection(detail: ServiceDetail, now: number): string {

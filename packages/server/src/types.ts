@@ -6,6 +6,9 @@
  * `packages/web/src/lib/types.ts`.
  */
 
+import type { AlertEventKind, AlertSeverity } from './core/alerts.js';
+import type { ResourceMetric, ResourceUnit } from './core/resources.js';
+
 /** Lifecycle state of a managed service. */
 export type ServiceState =
   | 'running'
@@ -137,6 +140,42 @@ export interface ActionRecord {
   exitCode?: number | null;
   /** First lines of stderr, for the history list. */
   excerpt?: string;
+}
+
+/** What produced a history entry. */
+export type HistoryKind = 'action' | 'rejected' | 'alert' | 'state' | 'probe' | 'config';
+
+export type HistorySeverity = 'info' | 'warning' | 'error';
+
+/**
+ * One thing that happened to a service.
+ *
+ * Kind-specific data hangs off optional members rather than a discriminated
+ * union: the wire types in `packages/web` and `packages/mcp` are hand-mirrored
+ * structs, and a union spread over three packages costs more than it buys here.
+ */
+export interface HistoryEntry {
+  kind: HistoryKind;
+  at: string;
+  severity: HistorySeverity;
+  /** Headline, e.g. "Restart", "CPU critical", "running → failed". */
+  label: string;
+  message: string;
+  /** `kind: 'action'` only. */
+  action?: ActionRecord;
+  /** `kind: 'alert'` only. */
+  alert?: HistoryAlert;
+  /** `kind: 'state'` only. */
+  state?: { from: ServiceState; to: ServiceState };
+}
+
+export interface HistoryAlert {
+  event: AlertEventKind;
+  metric: ResourceMetric;
+  severity: AlertSeverity;
+  value: number;
+  threshold: number;
+  unit: ResourceUnit;
 }
 
 export interface LogsResult {

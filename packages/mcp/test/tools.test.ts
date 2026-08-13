@@ -151,6 +151,13 @@ describe('get_service', () => {
     assert.doesNotMatch(text, /providerConfig/);
   });
 
+  it('renders history entries of every kind, not only actions', async () => {
+    const text = await callText('get_service', { service: 'antivirus' });
+    assert.match(text, /Recent activity/);
+    assert.match(text, /\[action\/info\] Restart \(2s, exit 0\): Restart finished/);
+    assert.match(text, /\[state\/error\] running → failed: unit entered failed state/);
+  });
+
   it('reports an unknown service with the API error code', async () => {
     const result = await call('get_service', { service: 'nope' });
     assert.equal(result.isError, true);
