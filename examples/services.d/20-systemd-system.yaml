@@ -23,6 +23,24 @@ group: infrastructure
 tags: [systemd, time, example]
 enabled: true
 
+# Resource thresholds. These merge over the global `monitoring:` block in
+# switchyard.yaml; a metric block here replaces the global one for that metric.
+#
+# For a systemd unit the numbers come from its cgroup, so they cover the unit and
+# every process it spawned. Disk I/O is only reported when the unit itself sets
+# `IOAccounting=yes` — Switchyard never edits unit files to turn that on — and
+# systemd has no per-unit network accounting at all, so `netRx` / `netTx`
+# thresholds would never fire here.
+monitoring:
+  cpu:
+    warning: 150% # 100% is one fully busy core, so this is 1.5 cores
+    critical: 400%
+    for: 30s # must stay over the threshold this long before alerting
+  memory:
+    warning: 1GiB
+    critical: 2GiB
+    for: 1m
+
 provider:
   unit: chrony.service # a bare name gets `.service` appended
   scope: system # system | user

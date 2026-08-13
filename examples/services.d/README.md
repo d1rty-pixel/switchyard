@@ -13,16 +13,17 @@ curl -X POST http://127.0.0.1:7878/api/reload
 
 | File | Provider | Shows |
 | --- | --- | --- |
-| `10-nginx-local.yaml` | `command` | pid-file liveness plus a config-test probe; runs the bundled nginx instance as-is |
+| `10-nginx-local.yaml` | `command` | pid-file liveness plus a config-test probe, resource thresholds sampled from `/proc`; runs the bundled nginx instance as-is |
 | `11-worker-script.yaml` | `command` | a management script with `status`/`logs` subcommands; runs the bundled worker as-is |
 | `12-dev-server.yaml` | `command` | foreground process handed to `systemd-run`, `interpret: stdout`, env vars, every base option |
 | `13-switchyard-self.yaml` | `command` | Switchyard managing its own server process; runs as-is |
-| `20-systemd-system.yaml` | `systemd` | a system unit through `sudo -n`, confirmations, enable/disable |
+| `20-systemd-system.yaml` | `systemd` | a system unit through `sudo -n`, confirmations, enable/disable, cgroup resource thresholds |
 | `21-systemd-user.yaml` | `systemd` | a user unit — no sudo, no polkit |
-| `30-compose-stack.yaml` | `compose` | a single compose file, the common action set |
+| `30-compose-stack.yaml` | `compose` | a single compose file, the common action set, per-project resource thresholds |
 | `31-compose-overlays.yaml` | `compose` | multiple files, profiles, `--env-file`, `destroy`, long timeouts |
 | `32-traefik-portainer.yaml` | `compose` | a reverse-proxy edge: published host ports, primary URL, confirmations |
 | `40-docker-container.yaml` | `docker` | a standalone container, every option, `enabled: false` |
+| `50-load-generator.yaml` | `command` | synthetic partial CPU / memory / disk load for testing resource alerts and their escalation; runs as-is (needs python3) |
 
 The files marked "as-is" need no path editing at all: once copied into
 `services.d/`, their `workdir: ..` resolves to the repository root and every path

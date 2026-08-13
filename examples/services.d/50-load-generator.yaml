@@ -1,0 +1,89 @@
+# A service that exists to be *loaded*, for testing resource monitoring.
+#
+# `examples/scripts/load-generator.sh` runs a single process that burns a set
+# fraction of a core, holds a fixed amount of memory and writes to disk at a
+# steady rate. The point is deliberately partial load: values that sit above the
+# warning threshold and below the critical one, held long enough for the
+# sustained-breach rule to fire.
+#
+# Two start actions:
+#   Start        ~45 % CPU, ~220 MiB, ~4 MiB/s  → warning on cpu, memory, diskWrite
+#   Start heavy  ~260 % CPU, ~900 MiB           → escalates cpu and memory to critical
+#
+# Works in a fresh clone without editing. Requires python3.
+#
+# The `command` provider samples through the pid file, so the numbers cover this
+# process and all its threads (the heavy mode uses three) but not forked
+# children — which is why the generator is one process rather than a pool.
+
+id: load-generator
+name: Load generator
+description: Synthetic CPU / memory / disk load for testing resource alerts
+icon: activity
+type: command
+group: development
+tags: [example, test, load]
+enabled: true
+workdir: ..
+
+# Thresholds are tuned to the two start modes above. `for` is short and the
+# cooldown is small on purpose: this service exists to make alerts happen while
+# you watch, not to be quiet.
+monitoring:
+  for: 10s
+  cooldown: 30s
+  cpu:
+    warning: 25%
+    critical: 150%
+  memory:
+    warning: 150MiB
+    critical: 700MiB
+  diskWrite:
+    warning: 2MiB/s
+    for: 30s # disk rates need a full sample window to settle
+
+env:
+  LOAD_CPU_PERCENT: '45'
+  LOAD_MEMORY_MB: '220'
+  LOAD_DISK_KBPS: '4096'
+  LOAD_HEAVY_CPU_PERCENT: '260'
+  LOAD_HEAVY_MEMORY_MB: '900'
+
+provider:
+  # The generator writes this itself; it decides running/stopped.
+  pidFile: .state/load-generator.pid
+  status:
+    run: [examples/scripts/load-generator.sh, status]
+    interpret: exit
+    successState: running
+    failureState: stopped
+    useStdoutAsSummary: true
+  logs:
+    run: [examples/scripts/load-generator.sh, logs]
+    tailArg: -n
+    source: load-generator.log
+  actions:
+    - id: start
+      label: Start
+      kind: primary
+      icon: play
+      description: ~45% of one core, 220 MiB resident, 4 MiB/s of writes
+      run: [examples/scripts/load-generator.sh, start]
+      enabledIn: [stopped, failed, unknown]
+    - id: start-heavy
+      label: Start heavy
+      kind: secondary
+      icon: flame
+      description: ~260% CPU (three threads) and 900 MiB — crosses the critical thresholds
+      run: [examples/scripts/load-generator.sh, start-heavy]
+      enabledIn: [stopped, failed, unknown]
+    - id: stop
+      label: Stop
+      kind: danger
+      icon: square
+      run: [examples/scripts/load-generator.sh, stop]
+      enabledIn: [running, degraded]
+    - id: restart
+      label: Restart
+      kind: secondary
+      run: [examples/scripts/load-generator.sh, restart]
