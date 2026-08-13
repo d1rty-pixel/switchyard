@@ -9,11 +9,10 @@
 # "switchyard ready" log line (falls back to a best-effort guess from
 # switchyard.yaml if the log hasn't caught up yet or is unreadable).
 #
-# Paired with examples/services.d/13-switchyard-self.yaml, which is "as-is":
-# copy it into services.d/ and it manages the switchyard checkout it lives in,
-# no path editing needed.
+# Paired with the shipped services.d/00-switchyard.yaml, which manages the
+# switchyard checkout it lives in with no path editing needed.
 #
-# Lives in scripts/ — real tooling that the example service definition drives.
+# Lives in scripts/ — real tooling that the shipped service definition drives.
 
 set -euo pipefail
 

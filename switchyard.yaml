@@ -59,6 +59,10 @@ monitoring:
 
 # Directories scanned for per-service files (*.yaml / *.yml, non-recursive).
 # Defaults to ./services.d when the key is omitted; listed here for clarity.
+#
+# The directory is git-ignored apart from `00-switchyard.yaml`, which ships with
+# the repository so a fresh checkout has something on the dashboard. Everything
+# else you put here stays local — service definitions describe your own machine.
 serviceDirs:
   - services.d
 

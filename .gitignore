@@ -14,6 +14,10 @@ dist/
 # provider live in examples/services.d/.
 services.d/*.yaml
 services.d/*.yml
+# Except the definition Switchyard ships with, which is what keeps a fresh
+# checkout from opening on an empty dashboard. Deleting this negation makes the
+# dashboard empty after a clone, not just untidy.
+!services.d/00-switchyard.yaml
 switchyard.local.yaml
 
 # Runtime state of the bundled examples
