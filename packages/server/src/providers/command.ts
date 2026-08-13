@@ -3,6 +3,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 import { actionIdSchema, argvSchema } from '../config/schema.js';
 import { failureReason, firstMeaningfulLine, toCommandOutput } from '../core/exec.js';
+import type { ProviderSample, ResourceCounters } from '../core/resources.js';
 import type { ActionDescriptor, ActionOutcome, LogsResult, Metric, ServiceState, StatusResult } from '../types.js';
 import { splitLines, type Provider, type ProviderContext } from './types.js';
 
@@ -240,6 +241,52 @@ export const commandProvider: Provider<CommandConfig> = {
     };
   },
 
+  /**
+   * Resource sampling from `/proc`, for services with a pid file.
+   *
+   * Scope, stated plainly because it matters for interpretation: these numbers
+   * describe **the process named by the pid file, including all of its threads,
+   * but none of its forked children**. A pid file names one process, and walking
+   * the process tree on every tick would mean scanning all of `/proc` for a
+   * number nobody asked to be approximate. The kernel's `cutime/cstime` fields
+   * are no help either: they only accumulate *reaped* children, so using them
+   * would make CPU jump when a worker exits rather than while it runs.
+   *
+   * Services whose real work happens in children are better modelled as a
+   * systemd unit, where the cgroup accounts for the whole tree.
+   */
+  async sample(context): Promise<ProviderSample | null> {
+    const { config } = context;
+    if (!config.pidFile) return null;
+
+    const pidFilePath = isAbsolute(config.pidFile)
+      ? config.pidFile
+      : resolve(context.service.workdir ?? process.cwd(), config.pidFile);
+    const info = await readPidFile(pidFilePath);
+    if (info.pid === undefined || !info.alive) return null;
+
+    const [cpuNanos, memoryBytes, io] = await Promise.all([
+      readProcCpuNanos(info.pid),
+      readProcRss(info.pid),
+      readProcIo(info.pid),
+    ]);
+
+    const sample: ProviderSample = {
+      attribution: `pid ${info.pid} and its threads — forked child processes are not counted`,
+    };
+    if (memoryBytes !== undefined) sample.memoryBytes = memoryBytes;
+
+    const counters: ResourceCounters = {};
+    if (cpuNanos !== undefined) counters.cpuNanos = cpuNanos;
+    if (io?.readBytes !== undefined) counters.diskReadBytes = io.readBytes;
+    if (io?.writeBytes !== undefined) counters.diskWriteBytes = io.writeBytes;
+    if (Object.keys(counters).length > 0) sample.counters = counters;
+
+    // Nothing readable (a process owned by another user) is no sample at all.
+    if (sample.memoryBytes === undefined && !sample.counters) return null;
+    return sample;
+  },
+
   async logs(context, options): Promise<LogsResult> {
     const logsConfig = context.config.logs;
     if (!logsConfig) return { source: 'none', lines: [] };
@@ -322,6 +369,66 @@ async function readPidFile(path: string): Promise<PidFileInfo> {
   }
 
   return { pid, alive, startedAt };
+}
+
+/**
+ * Cumulative CPU time of a process, in nanoseconds.
+ *
+ * `utime + stime` from `/proc/<pid>/stat` — the same fields `top` and `ps` use,
+ * and they cover **every thread** of the process. (`/proc/<pid>/schedstat` looks
+ * more precise, being in nanoseconds already, but it reports the main thread
+ * only, so a threaded service would be silently undercounted.)
+ *
+ * The fields are in clock ticks of `USER_HZ`, which is 100 on every Linux port
+ * Node runs on — an ABI constant, not the configured kernel tick rate.
+ */
+async function readProcCpuNanos(pid: number): Promise<number | undefined> {
+  try {
+    const raw = await readFile(`/proc/${pid}/stat`, 'utf8');
+    // The comm field may contain spaces and parentheses, so fields are counted
+    // from the last ')' rather than from the start of the line.
+    const tail = raw.slice(raw.lastIndexOf(')') + 2).split(/\s+/);
+    // After comm and state, utime is field 14 and stime field 15 of the line.
+    const utime = Number(tail[11]);
+    const stime = Number(tail[12]);
+    if (!Number.isFinite(utime) || !Number.isFinite(stime)) return undefined;
+    return ((utime + stime) / USER_HZ) * 1e9;
+  } catch {
+    return undefined;
+  }
+}
+
+/** USER_HZ: the unit of the clock-tick fields in /proc, fixed at 100 on Linux. */
+const USER_HZ = 100;
+
+async function readProcRss(pid: number): Promise<number | undefined> {
+  try {
+    const raw = await readFile(`/proc/${pid}/status`, 'utf8');
+    const match = /^VmRSS:\s+(\d+)\s+kB$/m.exec(raw);
+    if (!match?.[1]) return undefined;
+    return Number(match[1]) * 1024;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Bytes actually fetched from / sent to storage. Unreadable for a process owned
+ * by another user, which is a normal outcome rather than an error.
+ */
+async function readProcIo(pid: number): Promise<{ readBytes?: number; writeBytes?: number } | undefined> {
+  let raw: string;
+  try {
+    raw = await readFile(`/proc/${pid}/io`, 'utf8');
+  } catch {
+    return undefined;
+  }
+  const io: { readBytes?: number; writeBytes?: number } = {};
+  const read = /^read_bytes:\s+(\d+)$/m.exec(raw);
+  const written = /^write_bytes:\s+(\d+)$/m.exec(raw);
+  if (read?.[1]) io.readBytes = Number(read[1]);
+  if (written?.[1]) io.writeBytes = Number(written[1]);
+  return io.readBytes === undefined && io.writeBytes === undefined ? undefined : io;
 }
 
 function defaultIcon(actionId: string): string | undefined {

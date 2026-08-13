@@ -5,6 +5,7 @@ import {
   Boxes,
   Clock3,
   FolderOpen,
+  Gauge,
   History,
   Info,
   Loader2,
@@ -17,13 +18,14 @@ import {
 import clsx from 'clsx';
 import { hasGpuAcceleration } from '../lib/gpu';
 import { useRefreshService, useServiceDetail } from '../lib/hooks';
-import { formatAgo, formatClock, formatDuration, formatMetric, formatUptime } from '../lib/format';
+import { formatAgo, formatClock, formatDuration, formatMetric, formatResource, formatUptime } from '../lib/format';
 import { iconFor } from '../lib/icons';
+import { resourceEntries } from '../lib/resources';
 import { stateStyle } from '../lib/status';
 import { StatusBadge, StatusIndicator } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
 import { containerOptionsFrom, LogPane } from './LogPane';
-import type { ActionDescriptor, ChildStatus, ServiceDetail, ServiceSummary } from '../lib/types';
+import type { ActionDescriptor, ChildStatus, ResourceAlert, ServiceDetail, ServiceSummary } from '../lib/types';
 
 type Tab = 'overview' | 'logs' | 'history' | 'config';
 
@@ -330,6 +332,8 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
         </Section>
       )}
 
+      {(service.alerts.length > 0 || service.resources) && <ResourcesSection service={service} />}
+
       {service.metrics.length > 0 && (
         <Section title="Status detail" icon={Info}>
           <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -408,6 +412,113 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
       )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Live resource usage and active alerts.
+ *
+ * The attribution line is not decoration: "systemd cgroup" and "main PID only"
+ * are different measurements, and a reader deciding whether 40 % CPU is the whole
+ * service or just its parent process needs to be told which one this is.
+ */
+function ResourcesSection({ service }: { service: ServiceDetail }) {
+  const sample = service.resources;
+  const entries = sample ? resourceEntries(sample, service.alerts) : [];
+
+  return (
+    <Section title="Resources" icon={Gauge}>
+      {service.alerts.length > 0 && (
+        <ul className="mb-2 space-y-1.5">
+          {service.alerts.map((alert) => (
+            <AlertRow key={alert.key} alert={alert} />
+          ))}
+        </ul>
+      )}
+
+      {entries.length > 0 ? (
+        <>
+          <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {entries.map((entry) => (
+              <div
+                key={entry.metric}
+                className="flex items-baseline justify-between gap-3 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-1.5"
+              >
+                <dt className="shrink-0 text-[12.5px] text-muted">{entry.label}</dt>
+                <dd
+                  className={clsx(
+                    'num min-w-0 truncate text-right text-[13px] font-medium',
+                    entry.alert?.severity === 'critical'
+                      ? 'text-st-failed'
+                      : entry.alert
+                        ? 'text-st-degraded'
+                        : 'text-ink',
+                  )}
+                >
+                  {formatResource(entry.value, entry.unit)}
+                  {entry.metric === 'memory' && sample?.memoryLimitBytes !== undefined && (
+                    <span className="text-faint"> / {formatResource(sample.memoryLimitBytes, 'bytes')}</span>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-1.5 text-[12px] text-faint">
+            {sample?.attribution} · sampled {formatAgo(sample?.at)}
+          </p>
+        </>
+      ) : (
+        <p className="text-[13px] text-faint">
+          {service.monitored
+            ? 'No samples yet — nothing measurable while the service is not running.'
+            : 'This provider reports no resource samples.'}
+        </p>
+      )}
+
+      {sample?.children && sample.children.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {sample.children.map((child) => (
+            <li
+              key={child.id}
+              className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-lg border border-line-soft bg-surface-2/30 px-2.5 py-1.5"
+            >
+              <span className="mono min-w-0 flex-1 truncate text-ink-2">{child.name}</span>
+              {resourceEntries(child).map((entry) => (
+                <span key={entry.metric} className="num text-[12.5px] text-muted">
+                  <span className="text-faint">{entry.short} </span>
+                  {formatResource(entry.value, entry.unit)}
+                </span>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+function AlertRow({ alert }: { alert: ResourceAlert }) {
+  const critical = alert.severity === 'critical';
+  return (
+    <li
+      className={clsx(
+        'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[13px] leading-relaxed',
+        critical ? 'border-st-failed/30 bg-st-failed/[0.07] text-st-failed' : 'border-st-degraded/30 bg-st-degraded/[0.06] text-st-degraded',
+      )}
+    >
+      <Gauge className="mt-0.5 size-3.5 shrink-0" />
+      <span className="min-w-0 break-words">
+        <span className="font-medium">
+          {alert.label} {alert.severity}
+        </span>{' '}
+        — {formatResource(alert.value, alert.unit)} against a threshold of{' '}
+        {formatResource(alert.threshold, alert.unit)}.{' '}
+        <span className="text-faint">
+          breach began {formatAgo(alert.breachedAt)}, alerting since {formatAgo(alert.activatedAt)}
+          {alert.stale && ' · no fresh samples'}
+        </span>
+      </span>
+    </li>
   );
 }
 
@@ -534,6 +645,14 @@ function ConfigTab({ service }: { service: ServiceDetail }) {
       <Section title="Provider configuration" icon={Settings2}>
         <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-3 text-ink-2">
           {JSON.stringify(service.providerConfig, null, 2)}
+        </pre>
+      </Section>
+
+      {/* Effective values, i.e. the global monitoring block already merged in —
+          which is the thing that is hard to work out from the files alone. */}
+      <Section title="Monitoring (effective)" icon={Gauge}>
+        <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-3 text-ink-2">
+          {JSON.stringify(service.monitoringConfig, null, 2)}
         </pre>
       </Section>
 

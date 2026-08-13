@@ -1,14 +1,17 @@
 import type { ZodType, ZodTypeDef } from 'zod';
 import type { Logger } from '../core/logger.js';
 import type { ExecFn, ExecRequest, ExecResult } from '../core/exec.js';
+import type { ProviderSample } from '../core/resources.js';
+import type { SampleBatch } from '../core/sample-batch.js';
 import type { ActionDescriptor, ActionOutcome, LogsResult, PortInfo, StatusResult, UrlInfo } from '../types.js';
 import type { ServiceBase } from '../config/schema.js';
+import type { ResolvedMonitoring } from '../config/monitoring.js';
 
 /**
  * A service definition after config validation: base fields plus a provider
  * config block already parsed by that provider's schema.
  */
-export interface ResolvedService extends Omit<ServiceBase, 'ports' | 'urls' | 'provider'> {
+export interface ResolvedService extends Omit<ServiceBase, 'ports' | 'urls' | 'provider' | 'monitoring'> {
   ports: PortInfo[];
   urls: UrlInfo[];
   provider: unknown;
@@ -16,6 +19,8 @@ export interface ResolvedService extends Omit<ServiceBase, 'ports' | 'urls' | 'p
   timeout: number;
   /** Absolute path of the file this service was defined in. */
   source: string;
+  /** Thresholds and sampling switches, global defaults already merged in. */
+  monitoring: ResolvedMonitoring;
 }
 
 /**
@@ -70,6 +75,20 @@ export interface Provider<C = unknown> {
   supportsLogs(context: Omit<ProviderContext<C>, 'exec' | 'execRaw' | 'log'>): boolean;
 
   logs?(context: ProviderContext<C>, options: LogsOptions): Promise<LogsResult>;
+
+  /**
+   * Optional resource sampling. Providers report only what their backend can
+   * attribute to the service and omit everything else — an absent metric means
+   * "not measurable here", never zero.
+   *
+   * Cumulative counters (CPU nanoseconds, I/O byte totals) are returned as they
+   * were read; the monitor turns them into rates. `null` means the service has
+   * nothing to measure right now, e.g. it is stopped.
+   *
+   * `batch` shares backend calls between all services in one sampling tick —
+   * use it instead of running per-service commands that return global data.
+   */
+  sample?(context: ProviderContext<C>, batch: SampleBatch): Promise<ProviderSample | null>;
 }
 
 /** Convenience: split a captured stream into non-empty trailing lines. */

@@ -30,6 +30,25 @@ ports:
   - port: 8480
     label: http
 
+# Resource thresholds. The `command` provider samples through `/proc` using the
+# pid file below, so it measures **the master process only** — nginx worker
+# processes are not counted. The drawer states that on every sample. A service
+# whose real work happens in children is better modelled as a systemd unit, where
+# the cgroup covers the whole tree.
+#
+# Without a `pidFile` this provider has nothing to sample and thresholds here
+# would never fire.
+monitoring:
+  cpu:
+    warning: 80%
+    for: 30s
+  memory:
+    warning: 256MiB
+    critical: 512MiB
+  diskWrite:
+    warning: 20MiB/s
+    for: 30s
+
 provider:
   # Relative pid files resolve against `workdir`.
   pidFile: examples/nginx/run/nginx.pid

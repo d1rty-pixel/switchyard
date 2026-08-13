@@ -64,11 +64,18 @@ export async function registerApi(app: FastifyInstance, deps: ApiDeps): Promise<
       settings: {
         statusIntervalMs: config.settings.statusIntervalMs,
         logsTail: config.settings.logsTail,
+        monitoring: {
+          enabled: config.monitoring.enabled,
+          intervalMs: manager.monitorIntervalMs,
+        },
       },
     };
   });
 
   app.get('/api/services', async () => ({ services: manager.summaries() }));
+
+  /** Active resource alerts across all services, most severe first. */
+  app.get('/api/alerts', async () => ({ alerts: manager.activeAlerts() }));
 
   app.get('/api/services/:id', async (request) => {
     const { id } = parse(paramsSchema, request.params);

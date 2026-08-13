@@ -24,6 +24,9 @@ hidden: false # true = still managed and polled, just not shown on the dashboard
 order: 10 # sort weight inside the group; lower comes first
 timeoutMs: 45000 # per-service command timeout (overrides settings.commandTimeoutMs)
 confirm: [restart] # extra confirmation prompts on top of the provider defaults
+# `monitoring:` (resource thresholds) is the one base option not shown here: it
+# needs something to measure. See 10-nginx-local.yaml (pid file via /proc),
+# 20-systemd-system.yaml (cgroup) and 30-compose-stack.yaml (docker stats).
 
 workdir: /srv/example-api # cwd for every command of this service
 env:

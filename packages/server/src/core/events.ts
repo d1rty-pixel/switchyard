@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { ActionRecord, ServiceState } from '../types.js';
+import type { AlertEventKind, ResourceAlert } from './alerts.js';
 import type { ServiceSummary } from './views.js';
 
 /**
@@ -12,6 +13,19 @@ export type SwitchyardEvent =
   | { type: 'action:start'; id: string; actionId: string; label: string; startedAt: string }
   | { type: 'action:end'; id: string; actionId: string; record: ActionRecord }
   | { type: 'config:reload'; services: number; at: string }
+  /**
+   * A resource alert changed state. Its own event type rather than a generic
+   * service warning: the frontend has to tell an activation apart from a
+   * recovery to decide whether a desktop notification is warranted, and `notify`
+   * already carries the dedup/cooldown decision made by the alert machine.
+   */
+  | {
+      type: 'resource:alert';
+      event: AlertEventKind;
+      alert: ResourceAlert;
+      notify: boolean;
+      reason: string;
+    }
   | { type: 'ready'; at: string };
 
 export class EventBus {

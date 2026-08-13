@@ -79,6 +79,13 @@ Validate the configuration without starting anything:
 node packages/server/dist/index.js --check
 ```
 
+Typechecks and tests:
+
+```bash
+npm run typecheck
+npm test               # node:test suites in packages/server/test, run via tsx
+```
+
 CLI flags: `--config <path>`, `--host <addr>`, `--port <n>`, `--check`,
 `--version`, `--help`. Environment: `SWITCHYARD_CONFIG`, `SWITCHYARD_LOG_LEVEL`.
 
@@ -105,6 +112,8 @@ settings:
   historyLimit: 25
   statusConcurrency: 4
   allowRemoteBind: false       # refuse non-loopback binds unless true
+monitoring:                    # resource sampling defaults, see below
+  interval: 15s
 serviceDirs: [services.d]
 groups:
   - { id: web, name: Web, icon: globe, order: 10 }
@@ -132,6 +141,8 @@ ports:
 confirm: [stop]                # extra confirmation prompts
 timeoutMs: 30000               # per-service command timeout
 order: 10                      # sort weight inside the group
+monitoring:                    # resource thresholds, see below
+  cpu: { warning: 150%, critical: 400%, for: 30s }
 provider: { ... }              # provider-specific, see below
 ```
 
@@ -206,7 +217,8 @@ provider:
 ```
 
 Status comes from `systemctl show` (no privileges) and includes sub-state, main
-PID, boot enablement, restart count, memory, tasks and the unit file path. Logs
+PID, boot enablement, restart count, tasks and the unit file path (memory and CPU
+come from the resource sampler instead — see **Resource monitoring**). Logs
 come from `journalctl`. Mutating verbs are wrapped in `sudo -n` so a missing rule
 fails immediately instead of hanging — see **Privileges** below.
 
@@ -250,6 +262,96 @@ that reads as `failed` forever, even though the stop was intentional and
 succeeded. List the exit code(s) that image is known to use on a clean stop
 and Switchyard reports `stopped` instead, with no exit-code warning.
 
+## Resource monitoring
+
+Some locally managed services are perfectly healthy and still ruin the machine —
+an antivirus daemon rescanning everything, a dev stack whose frontend build eats
+four cores. Switchyard samples what each service actually consumes and alerts when
+a service stays over a threshold you set.
+
+Sampling is on by default and needs no configuration: cards show CPU and memory,
+the drawer shows disk and network too. **Thresholds are what create alerts**, and
+they are always opt-in.
+
+```yaml
+# switchyard.yaml — global defaults
+monitoring:
+  interval: 15s        # sampling interval, independent of statusIntervalMs
+  for: 30s             # default sustained duration before an alert activates
+  clearBelow: 0.9      # clear only below threshold × 0.9 (anti-flapping)
+  cooldown: 5m         # minimum gap between repeat notifications
+  enabled: true        # false switches sampling off entirely
+```
+
+```yaml
+# services.d/antivirus.yaml — per service, merged over the global block
+monitoring:
+  cpu:
+    warning: 150%      # 100% = one fully busy core
+    critical: 400%
+    for: 30s           # this metric must stay over its threshold this long
+  memory:
+    warning: 2GiB
+    critical: 4GiB
+    for: 1m
+  diskWrite:
+    warning: 50MiB/s
+```
+
+Metrics: `cpu`, `memory`, `diskRead`, `diskWrite`, `netRx`, `netTx`. Units are
+written out — `150%`, `2GiB`, `500MB`, `50MiB/s`, `30s`, `5m` — and a value
+without a unit is a config error rather than a guess. A metric block replaces the
+global one for that metric, so a service that sets only `warning` does not
+silently inherit a `critical` from another file. `monitoring: { enabled: false }`
+opts a single service out.
+
+### What each provider can measure
+
+| Provider | CPU | Memory | Disk | Network | Attribution |
+| --- | --- | --- | --- | --- | --- |
+| `systemd` | ✓ `CPUUsageNSec` | ✓ `MemoryCurrent` | only with `IOAccounting=yes` on the unit | — | the unit's cgroup: the service and every process it spawned |
+| `docker` | ✓ | ✓ | ✓ | ✓ | the container's cgroup |
+| `compose` | ✓ | ✓ | ✓ | ✓ | sum over the project's containers, plus per-container detail in the drawer |
+| `command` | ✓ | ✓ | ✓ where `/proc/<pid>/io` is readable | — | **the process in the pid file and its threads** — forked children are not counted |
+
+A metric a provider cannot attribute to the service is *absent*, never zero, and
+every sample says what it covers. Switchyard does not modify unit files to enable
+`IOAccounting`, and per-unit network accounting does not exist in systemd at all.
+A service whose real work happens in forked children is better modelled as a
+systemd unit, where the cgroup covers the whole tree.
+
+Nothing here is machine-wide: these are per-service numbers, and a busy host does
+not make an idle service look guilty.
+
+### Alert lifecycle
+
+1. The value crosses a threshold — nothing happens yet.
+2. It stays over it for `for` → the alert **activates**, and (once) fires a
+   desktop notification.
+3. It keeps going while nothing changes → no further events, no repeat banners.
+4. It reaches `critical` for `for` → **escalates**, notifying again.
+5. It drops back under `critical × clearBelow` → **de-escalates** to warning
+   silently, staying active while the warning threshold is still breached.
+6. It drops under `threshold × clearBelow` → **clears**, with a toast.
+7. Samples stop arriving (service stopped, Docker gone) → the alert is marked
+   stale and cleared after three missed intervals.
+
+Actions pause all of this: while a restart or a `compose pull` runs, the service
+is not sampled and its counters are dropped, so the restart itself never looks
+like a breach or a recovery. `for` and `cooldown` are elapsed wall-clock time, so
+changing `interval` never changes what `for: 30s` means.
+
+To see all of this happen without waiting for a real service to misbehave, copy
+`examples/services.d/50-load-generator.yaml` into `services.d/`: it produces a set
+fraction of a core, a fixed amount of memory and a steady write rate, with a
+second start action that goes over the critical thresholds so the escalation path
+is visible too.
+
+Alerts appear on the card, in the table, in the drawer with their thresholds and
+timings, and at `GET /api/alerts`. Switchyard **detects and reports** — it never
+throttles, stops or restarts anything on its own, and never touches `CPUQuota`,
+`MemoryMax` or Docker limits.
+
 ## Using the dashboard
 
 * **Search** — `/` focuses the field; matches name, id, description, tags, type,
@@ -260,14 +362,16 @@ and Switchyard reports `stopped` instead, with no exit-code warning.
 * **View** — *cards* or *table*. Cards show everything about a service at once
   and read well up to a few dozen services; the table puts one service per row
   with aligned columns, which is what a long list needs to stay scannable.
-* **Card** — status badge, provider, live summary, uptime, highlighted metrics,
-  ports, primary URL, first warning, inline actions, last action, last check.
+* **Card** — status badge, provider, live summary, uptime, CPU and memory,
+  highlighted metrics, ports, primary URL, resource alerts, first warning, inline
+  actions, last action, last check.
 * **Table row** — the same facts as a column each: service, state, detail,
-  group, uptime, endpoints, actions, last check. Secondary columns drop out on
-  narrow viewports rather than reflowing.
-* **Drawer** — click a service: full status metrics, container list, endpoints, raw
-  probe output, log tail, action history with output, and the service definition
-  (including which file it came from).
+  group, uptime, load, endpoints, actions, last check. Secondary columns drop out
+  on narrow viewports rather than reflowing.
+* **Drawer** — click a service: full status metrics, live resource usage with its
+  attribution and active alerts, container list, endpoints, raw probe output, log
+  tail, action history with output, and the service definition (including which
+  file it came from and the effective monitoring thresholds).
 * **Actions** — destructive ones ask for confirmation; while one runs, every
   control for that service is locked and the card shows a transitional state.
   Failures raise a sticky toast with the exact stdout/stderr.
@@ -284,13 +388,14 @@ dashed ring (unknown).
 | --- | --- | --- |
 | `GET` | `/api/health` | liveness, version, service count |
 | `GET` | `/api/meta` | groups, providers, config path, warnings, disabled services |
-| `GET` | `/api/services` | all summaries |
+| `GET` | `/api/services` | all summaries, including the latest resource sample and active alerts |
+| `GET` | `/api/alerts` | active resource alerts, most severe first |
 | `GET` | `/api/services/:id` | detail: children, history, raw probe, definition |
 | `POST` | `/api/services/:id/actions/:action` | run an action |
 | `POST` | `/api/services/:id/refresh` | re-probe now |
 | `GET` | `/api/services/:id/logs?tail=200` | log tail |
 | `POST` | `/api/reload` | re-read config from disk |
-| `GET` | `/api/events` | SSE: `snapshot`, `service:update`, `service:checked`, `action:start`, `action:end`, `config:reload` |
+| `GET` | `/api/events` | SSE: `snapshot`, `service:update`, `service:checked`, `action:start`, `action:end`, `resource:alert`, `config:reload` |
 
 Errors are `{ "error": { "code", "message", "details" } }` with `404` unknown
 service/action, `409` an action is already running, `422` capability not

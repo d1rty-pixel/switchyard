@@ -23,6 +23,24 @@ ports:
   - port: 5432
     label: postgres
 
+# Compose services are sampled from one batched `docker stats` shared by every
+# Docker-based service on the host. The thresholds below apply to the sum over the
+# project's containers; the drawer additionally lists each container's own numbers,
+# which is how you tell "the database is writing" from "the frontend is building".
+monitoring:
+  cpu:
+    warning: 200%
+    for: 1m
+  memory:
+    warning: 2GiB
+    critical: 6GiB
+  diskWrite:
+    warning: 50MiB/s
+    for: 30s
+  netTx:
+    warning: 20MiB/s
+    for: 1m
+
 provider:
   file: /srv/postgres-local/docker-compose.yml
   projectDir: /srv/postgres-local # defaults to the service workdir

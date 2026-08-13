@@ -1,8 +1,9 @@
-import { AlertTriangle, ArrowUpRight, Clock3, Radio, ScrollText } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowUpRight, Clock3, Gauge, Radio, ScrollText } from 'lucide-react';
 import clsx from 'clsx';
 import { iconFor } from '../lib/icons';
 import { stateStyle } from '../lib/status';
-import { formatAgo, formatMetric, formatUptime } from '../lib/format';
+import { formatAgo, formatMetric, formatResource, formatUptime } from '../lib/format';
+import { resourceEntries } from '../lib/resources';
 import { StatusBadge, StatusIndicator } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
 import type { ActionDescriptor, ServiceSummary } from '../lib/types';
@@ -20,6 +21,14 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
   const primaryUrl = service.urls.find((url) => url.primary) ?? service.urls[0];
   const highlights = service.metrics.filter((metric) => metric.highlight).slice(0, 3);
   const warning = service.warnings[0] ?? service.errors[0];
+  // CPU and memory on the card, the rest in the drawer: two numbers is what fits
+  // next to the ports without turning the card into a monitoring console.
+  const resources = service.resources
+    ? resourceEntries(service.resources, service.alerts).filter(
+        (entry) => entry.metric === 'cpu' || entry.metric === 'memory' || entry.alert,
+      )
+    : [];
+  const alert = service.alerts[0];
 
   return (
     <article
@@ -100,8 +109,31 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
         </div>
       </div>
 
-      {(highlights.length > 0 || service.ports.length > 0 || primaryUrl) && (
+      {(highlights.length > 0 || resources.length > 0 || service.ports.length > 0 || primaryUrl) && (
         <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pl-5">
+          {resources.map((entry) => (
+            <span
+              key={entry.metric}
+              title={
+                entry.alert
+                  ? `${entry.label}: ${formatResource(entry.value, entry.unit)} — ${entry.alert.severity} threshold ${formatResource(entry.alert.threshold, entry.unit)}`
+                  : `${entry.label} · ${service.resources?.attribution ?? ''}`
+              }
+              className={clsx(
+                'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[12px]',
+                entry.alert?.severity === 'critical'
+                  ? 'border-st-failed/30 bg-st-failed/10 text-st-failed'
+                  : entry.alert
+                    ? 'border-st-degraded/30 bg-st-degraded/10 text-st-degraded'
+                    : 'border-line-soft bg-surface-2/50 text-ink-2',
+              )}
+            >
+              {entry.metric === 'cpu' ? <Gauge className="size-3 opacity-70" /> : <Activity className="size-3 opacity-70" />}
+              <span className="text-faint">{entry.short}</span>
+              <span className="num font-medium">{formatResource(entry.value, entry.unit)}</span>
+            </span>
+          ))}
+
           {highlights.map((metric) => (
             <span
               key={metric.label}
@@ -143,6 +175,31 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
             </a>
           )}
         </div>
+      )}
+
+      {/* Resource alerts get their own row, above the provider warnings: they
+          describe load rather than a broken service, and the two would be
+          indistinguishable in one list. */}
+      {alert && (
+        <button
+          type="button"
+          onClick={onOpen}
+          title={`Since ${alert.activatedAt}`}
+          className={clsx(
+            'mx-4 mb-3 ml-5 flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[12.5px] leading-relaxed',
+            alert.severity === 'critical'
+              ? 'border-st-failed/30 bg-st-failed/[0.07] text-st-failed'
+              : 'border-st-degraded/30 bg-st-degraded/[0.07] text-st-degraded',
+          )}
+        >
+          <Gauge className="mt-0.5 size-3.5 shrink-0" />
+          <span className="min-w-0 break-words">
+            {alert.label} {alert.severity} · {formatResource(alert.value, alert.unit)} over{' '}
+            {formatResource(alert.threshold, alert.unit)}
+            {alert.stale && ' (no fresh samples)'}
+            {service.alerts.length > 1 && <span className="ml-1 underline decoration-dotted">+{service.alerts.length - 1} more</span>}
+          </span>
+        </button>
       )}
 
       {warning && (

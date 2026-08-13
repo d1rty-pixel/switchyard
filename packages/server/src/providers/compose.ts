@@ -1,5 +1,8 @@
+import { basename } from 'node:path';
 import { z } from 'zod';
 import { failureReason, firstMeaningfulLine, toCommandOutput } from '../core/exec.js';
+import { statsRowToUnit } from '../core/sample-batch.js';
+import { sumCounters, sumGauge, type ProviderSample, type ProviderSampleUnit } from '../core/resources.js';
 import type {
   ActionDescriptor,
   ActionOutcome,
@@ -147,6 +150,22 @@ function composeBaseArgv(config: ComposeConfig): string[] {
 
 function projectCwd(context: ProviderContext<ComposeConfig>): string | undefined {
   return context.config.projectDir ?? context.service.workdir;
+}
+
+/**
+ * The compose project name, as Docker labels it.
+ *
+ * Explicit `projectName` wins. Otherwise compose derives it from the project
+ * directory the same way this does: lowercase, and anything outside
+ * `[a-z0-9_-]` dropped. Getting it wrong costs resource samples for that stack,
+ * never wrong attribution — a name that matches no label matches no container.
+ */
+function projectName(context: ProviderContext<ComposeConfig>): string | undefined {
+  if (context.config.projectName) return context.config.projectName;
+  const dir = projectCwd(context);
+  if (!dir) return undefined;
+  const derived = basename(dir).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return derived || undefined;
 }
 
 interface ComposePs {
@@ -350,6 +369,55 @@ export const composeProvider: Provider<ComposeConfig> = {
       urls,
       output: toCommandOutput(psResult),
     };
+  },
+
+  /**
+   * Resource sampling for a whole project, per container.
+   *
+   * Two batched calls serve every Docker-based service on the host: one
+   * `docker stats` for the numbers and one `docker ps` for the compose labels
+   * that say which container belongs to which project. Nothing here scales with
+   * the number of configured stacks.
+   *
+   * Children keep their own values — a stack whose Postgres is eating the disk
+   * looks different from one whose frontend is — and the service-level numbers
+   * are the sum over the project's containers.
+   */
+  async sample(context, batch): Promise<ProviderSample | null> {
+    const { config } = context;
+    const project = projectName(context);
+    if (!project) return null;
+
+    const [stats, containers] = await Promise.all([
+      batch.dockerStats(config.dockerPath, context.execRaw),
+      batch.composeContainers(config.dockerPath, context.execRaw),
+    ]);
+
+    const children: (ProviderSampleUnit & { id: string; name: string })[] = [];
+    for (const container of containers) {
+      if (container.project !== project) continue;
+      const row = stats.get(container.id) ?? stats.get(container.name);
+      if (!row) continue; // listed but not running
+      children.push({
+        id: container.id,
+        name: container.service || container.name,
+        ...statsRowToUnit(row),
+      });
+    }
+
+    if (children.length === 0) return null;
+
+    const sample: ProviderSample = {
+      attribution: `docker stats — sum over ${children.length} container(s) of compose project "${project}"`,
+      children,
+    };
+    const cpu = sumGauge(children, 'cpuPercent');
+    if (cpu !== undefined) sample.cpuPercent = cpu;
+    const memory = sumGauge(children, 'memoryBytes');
+    if (memory !== undefined) sample.memoryBytes = memory;
+    const counters = sumCounters(children);
+    if (counters) sample.counters = counters;
+    return sample;
   },
 
   async runAction(context, descriptor): Promise<ActionOutcome> {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { globalMonitoringSchema, serviceMonitoringSchema } from './monitoring.js';
 
 /**
  * Zod schemas for `switchyard.yaml`.
@@ -105,12 +106,19 @@ export const serviceBaseSchema = z.object({
   enabled: z.boolean().default(true),
   /** Keep the definition active (still polled) but hide it from the dashboard. */
   hidden: z.boolean().default(false),
+  /**
+   * Resource thresholds for this service, merged on top of the global
+   * `monitoring:` block. Omit it to sample without ever alerting.
+   */
+  monitoring: serviceMonitoringSchema,
   provider: z.unknown().optional(),
 });
 
 export const configFileSchema = z.object({
   version: z.literal(1).default(1),
   settings: settingsSchema,
+  /** Global resource monitoring defaults; see config/monitoring.ts. */
+  monitoring: globalMonitoringSchema,
   groups: z.array(groupSchema).default([]),
   /** Inline services. Usually empty — prefer one file per service in services.d/. */
   services: z.array(serviceBaseSchema).default([]),

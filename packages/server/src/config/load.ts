@@ -15,6 +15,11 @@ import {
   type ServiceBase,
   type Settings,
 } from './schema.js';
+import {
+  resolveGlobalMonitoring,
+  resolveServiceMonitoring,
+  type ResolvedGlobalMonitoring,
+} from './monitoring.js';
 
 /** A service definition that is switched off via `enabled: false`. */
 export interface DisabledService {
@@ -30,6 +35,8 @@ export interface LoadedConfig {
   /** Directories that were scanned for per-service files. */
   serviceDirs: string[];
   settings: Settings;
+  /** Global monitoring defaults; per-service overrides live on each service. */
+  monitoring: ResolvedGlobalMonitoring;
   groups: GroupDefinition[];
   services: ResolvedService[];
   disabled: DisabledService[];
@@ -86,6 +93,7 @@ export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
 
   const warnings: string[] = [];
   const issues: string[] = [];
+  const monitoring = resolveGlobalMonitoring(base.data.monitoring);
 
   // Main file first, then each services directory in declaration order.
   const definitions: SourcedDefinition[] = base.data.services.map((definition) => ({
@@ -156,6 +164,7 @@ export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
       urls: definition.urls.map(normaliseUrl),
       provider: providerParsed.data,
       timeout: definition.timeoutMs ?? base.data.settings.commandTimeoutMs,
+      monitoring: resolveServiceMonitoring(monitoring, definition.monitoring),
       source,
     });
   }
@@ -179,7 +188,18 @@ export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
     );
   }
 
-  return { path, serviceDirs, settings: base.data.settings, groups, services, disabled, warnings };
+  // A service with thresholds whose provider cannot sample would never alert;
+  // say so at load time rather than leaving the author waiting for an alert.
+  for (const service of services) {
+    const provider = getProvider(service.type);
+    if (!provider?.sample && Object.keys(service.monitoring.thresholds).length > 0) {
+      warnings.push(
+        `${service.id}: provider "${service.type}" reports no resource samples — its monitoring thresholds are inert`,
+      );
+    }
+  }
+
+  return { path, serviceDirs, settings: base.data.settings, monitoring, groups, services, disabled, warnings };
 }
 
 async function readYaml(path: string): Promise<unknown> {
