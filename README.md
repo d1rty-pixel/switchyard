@@ -9,6 +9,14 @@
 nginx instances, Compose stacks, systemd units, containers and hand-written
 scripts — each with its own control mechanism, all on one screen.
 
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A5%2020.11-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)](package.json)
+[![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](packages/server/tsconfig.json)
+[![Platform](https://img.shields.io/badge/platform-linux-333333?style=flat-square&logo=linux&logoColor=white)](#requirements)
+[![Providers](https://img.shields.io/badge/providers-command%20%C2%B7%20systemd%20%C2%B7%20compose%20%C2%B7%20docker-6E56CF?style=flat-square)](#providers)
+[![MCP](https://img.shields.io/badge/MCP-stdio%20%2B%20HTTP-D97706?style=flat-square)](#mcp-interface)
+[![Dependencies](https://img.shields.io/badge/database-none-success?style=flat-square)](#scope)
+
 </div>
 
 ---
@@ -20,12 +28,15 @@ service declares which provider drives it and which actions exist; the dashboard
 renders whatever that provider reports.
 
 * **Declarative** — one YAML file per service in `services.d/`.
-* **Safe by construction** — the browser can never send a command. It names a
-  service id and an action id; both are looked up in tables built from your
-  config. No shell, ever.
+* **Safe by construction** — no caller can send a command, browser or agent
+  alike. They name a service id and an action id; both are looked up in tables
+  built from your config. No shell, ever.
 * **Local-only** — binds `127.0.0.1`, no authentication, no telemetry.
 * **Live** — status is pushed over server-sent events, not polled by the browser.
-* **Hackable** — ~4 kLOC, four providers, no database.
+* **Agent-ready** — the same services, actions and resource numbers over
+  [MCP](#mcp-interface), for Claude Code and anything else that speaks it.
+* **Hackable** — ~14 kLOC across dashboard, server and MCP; four providers; no
+  database.
 
 ## Requirements
 
@@ -60,7 +71,7 @@ cp examples/services.d/10-nginx-local.yaml examples/services.d/11-worker-script.
 
 Service ids have to be unique across the directory.
 
-Development, with hot reload on both halves:
+Development, with hot reload on the server and the UI:
 
 ```bash
 npm run dev            # API on :7878 (tsx watch), UI on :5273 (Vite proxy)
@@ -123,6 +134,7 @@ settings:
   allowRemoteBind: false       # refuse non-loopback binds unless true
 monitoring:                    # resource sampling defaults, see below
   interval: 15s
+  history: 30m                 # sample retention for the trend queries
 serviceDirs: [services.d]
 groups:
   - { id: web, name: Web, icon: globe, order: 10 }
@@ -358,7 +370,8 @@ second start action that goes over the critical thresholds so the escalation pat
 is visible too.
 
 Alerts appear on the card, in the table, in the drawer with their thresholds and
-timings, and at `GET /api/alerts`. Switchyard **detects and reports** — it never
+timings, at `GET /api/alerts` and `GET /api/resources`, and through the MCP
+`get_alerts` tool. Switchyard **detects and reports** — it never
 throttles, stops or restarts anything on its own, and never touches `CPUQuota`,
 `MemoryMax` or Docker limits.
 

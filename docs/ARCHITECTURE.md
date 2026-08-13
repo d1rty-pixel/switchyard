@@ -47,7 +47,7 @@ only ever disagree with the dashboard.
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Runtime | Node 20+, TypeScript, ESM | one language for both halves, one `npm install`, no compiled toolchain |
+| Runtime | Node 20+, TypeScript, ESM | one language across dashboard, server and MCP; one `npm install`; no compiled toolchain |
 | HTTP | Fastify 5 | small, fast, good error hooks; `@fastify/static` serves the built UI |
 | Validation | zod | the config schema *is* the documentation, and the same library validates request params |
 | Config | YAML (js-yaml) | comments matter in a file that describes commands |
