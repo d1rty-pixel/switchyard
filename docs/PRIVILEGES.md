@@ -115,6 +115,28 @@ Note which compose actions are destructive: `down` removes containers,
 `down -v` (`destroy`) removes named volumes. Both are marked as confirm-required
 and `destroy` is opt-in per service via `provider.actions`.
 
+### Resource sampling
+
+Sampling needs **no privileges beyond what status probing already needs**, and it
+never changes anything:
+
+| Provider | Reads | Privilege |
+| --- | --- | --- |
+| `systemd` | `systemctl show` (`MemoryCurrent`, `CPUUsageNSec`, `IOReadBytes`, `IOWriteBytes`) | none |
+| `command` | `/proc/<pid>/stat`, `/proc/<pid>/status`, `/proc/<pid>/io` | your own processes; another user's `io` file is simply unreadable and the metric stays absent |
+| `docker`, `compose` | one `docker stats` and one `docker ps` per sampling tick | the Docker access described above |
+
+Two things it deliberately does *not* do, because both would mean writing to
+system configuration:
+
+* it never edits unit files or drop-ins — in particular it does not enable
+  `IOAccounting=yes`, so disk I/O for a systemd unit is reported only if the unit
+  already has it;
+* it never sets or changes a resource limit (`CPUQuota`, `MemoryHigh`,
+  `MemoryMax`, Docker `--memory`/`--cpus`) and never stops, restarts or throttles
+  a service in response to an alert. Detection and containment are separate
+  concerns, and containment belongs to whoever owns the unit.
+
 ### nginx (via the `command` provider)
 
 An unprivileged instance with its own prefix needs nothing. A system nginx on
@@ -146,3 +168,5 @@ port 80/443 needs root for start/stop/reload — in that case:
   sudoers or polkit for you.
 * No writing to your configuration. `POST /api/reload` re-reads files from disk;
   nothing in the UI edits them.
+* No automatic remediation. Resource monitoring reports; it does not throttle,
+  limit, stop or restart anything on its own.

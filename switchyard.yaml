@@ -25,6 +25,16 @@ settings:
   historyLimit: 25
   statusConcurrency: 4
 
+# Resource monitoring defaults. Sampling runs on its own interval, separate from
+# the status poll above, because CPU and I/O rates are differences between two
+# readings. Thresholds live per service (see services.d/*.yaml); without any,
+# services are sampled for display only and never alert.
+monitoring:
+  interval: 15s # sampling interval
+  for: 30s # default time a threshold must stay exceeded before alerting
+  clearBelow: 0.9 # clear only below threshold × 0.9, so a value on the line cannot flap
+  cooldown: 5m # minimum gap between repeat notifications per service and metric
+
 # Directories scanned for per-service files (*.yaml / *.yml, non-recursive).
 # Defaults to ./services.d when the key is omitted; listed here for clarity.
 serviceDirs:
