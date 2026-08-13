@@ -181,3 +181,40 @@ describe('GET /api/services/:id/resources/history', () => {
     assert.equal((await get('/api/services/nope/resources/history')).status, 404);
   });
 });
+
+describe('configuration errors', () => {
+  it('reports a rejected config as 422 with the individual issues', async () => {
+    // A second app, pointed at the broken file, so the good one stays loaded.
+    const broken = await createApp({
+      manager,
+      bus: new EventBus(),
+      version: '0.0.0-test',
+      configPathOverride: resolve(dir, 'bad.yaml'),
+    });
+
+    for (const request of [
+      { method: 'GET' as const, url: '/api/reload/preview' },
+      { method: 'POST' as const, url: '/api/reload' },
+    ]) {
+      const response = await broken.inject(request);
+      assert.equal(response.statusCode, 422, `${request.method} ${request.url}`);
+      const body = response.json();
+      assert.equal(body.error.code, 'invalid_config');
+      assert.match(body.error.message, /invalid configuration in/);
+      // The issue list is the entire useful part of the answer: without it the
+      // caller is told only that "the configuration is invalid".
+      assert.ok(Array.isArray(body.error.details.issues));
+      assert.ok(body.error.details.issues.length > 0);
+      assert.match(body.error.details.issues.join('\n'), /history/);
+    }
+
+    await broken.close();
+  });
+
+  it('previews a valid config without applying anything', async () => {
+    const { status, body } = await get('/api/reload/preview');
+    assert.equal(status, 200);
+    assert.equal(body.services, 1);
+    assert.deepEqual(body.diff, { added: [], removed: [], changed: [], unchanged: 1 });
+  });
+});

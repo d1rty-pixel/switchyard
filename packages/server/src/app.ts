@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyBaseLogger, type FastifyError, type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { SwitchyardError } from './core/errors.js';
+import { ConfigError, SwitchyardError } from './core/errors.js';
 import { logger } from './core/logger.js';
 import { registerApi } from './routes/api.js';
 import type { ServiceManager } from './core/manager.js';
@@ -55,6 +55,17 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
     if (error instanceof SwitchyardError) {
       reply.code(error.statusCode);
       return reply.send({ error: { code: error.code, message: error.message, details: error.details } });
+    }
+    // A bad configuration file is the caller's problem to fix, not a server
+    // fault, and the per-issue list is the entire useful part of the answer —
+    // falling through to the generic handler below turned "history: unknown key
+    // in switchyard.yaml" into a bare 500 with the reason thrown away.
+    if (error instanceof ConfigError) {
+      request.log.warn({ issues: error.issues }, 'configuration rejected');
+      reply.code(422);
+      return reply.send({
+        error: { code: 'invalid_config', message: error.message, details: { issues: error.issues } },
+      });
     }
     request.log.error({ err: error, url: request.url }, 'unhandled error');
     reply.code(error.statusCode ?? 500);
