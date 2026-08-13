@@ -146,6 +146,61 @@ port 80/443 needs root for start/stop/reload — in that case:
 * keep the read-only `nginx -t` config test unprivileged where possible, so the
   most frequently used action needs no privilege at all.
 
+## The MCP server
+
+`packages/mcp` needs **no privileges of its own**. It reaches Switchyard only over
+the same loopback HTTP API a browser uses, never touches the configuration files,
+never spawns a subprocess, and holds no credentials.
+
+In its default **stdio** mode it opens no socket at all: an MCP client spawns it and
+it exits with that connection.
+
+Its **HTTP** mode (`--http`, port 7879) is a listener, and `services.d/01-switchyard-mcp.yaml`
+ships **enabled**, so it is part of the default installation — visible and manageable
+on the dashboard from the first start. Switchyard does not start any service on its
+own, so nothing listens until you press Start or run `npm run mcp:http`.
+
+That is only defensible because of one hard invariant:
+
+> **The MCP listener binds loopback only, and nothing can change that.** Not a flag,
+> not an environment variable, not a config key. Unlike the dashboard's
+> `settings.allowRemoteBind` there is no escape hatch, because an MCP endpoint runs
+> actions: a reachable one would be a remote control panel for every service on the
+> machine with no credential anywhere in the path.
+
+It is enforced in one function (`loopbackOnly` in `packages/mcp/src/config.ts`) that
+every path into the bind address goes through, and asserted from both the flag and
+the environment side in `packages/mcp/test/config.test.ts`. The shipped service
+definition passes no `--host` at all, leaving the hard-coded default.
+
+Its `/health` endpoint is unauthenticated but deliberately says nothing about
+Switchyard or your services — version, transport, pid, uptime, and the API URL it
+was pointed at.
+
+What it does change is *who* can drive Switchyard: an agent connected to that MCP
+server can run any action a service declares, exactly as a person clicking in the
+dashboard can, and therefore with whatever privileges those actions already carry —
+including a `sudo -n systemctl restart` rule you granted for a system unit. The
+`confirm:` flag is enforced in the tool handler rather than delegated to a client
+honouring an annotation, so an action marked as needing confirmation is refused
+unless the caller passes `confirm: true`.
+
+The trust model above is unchanged: parameters are still ids only, looked up in
+tables built from the configuration. There is no MCP tool that accepts a command, an
+argument, an executable path or a provider setting, and none that returns the
+`providerConfig` block.
+
+Three consequences worth being deliberate about:
+
+* an MCP client running unattended has the same reach as an unattended browser tab
+  on the dashboard — scope the sudoers rules accordingly;
+* `SWITCHYARD_URL` can point anywhere, so review it if it is set from something
+  other than the committed `.mcp.json` default of `http://127.0.0.1:7878`;
+* registering the server at *user* scope (`scripts/switchyard-mcp-install.sh`) makes
+  it available to every project you open, not just this checkout. That is the point
+  of it, but it does widen which sessions can drive your services — which is why it
+  is an explicit opt-in and never happens during install, build or startup.
+
 ## Hardening checklist
 
 * [ ] Switchyard runs as your user, not root.
@@ -159,6 +214,12 @@ port 80/443 needs root for start/stop/reload — in that case:
 * [ ] Secrets are not written into service definitions; use `env` sparingly and
       remember that env values stay server-side but are visible to anyone who can
       read the file.
+* [ ] You are aware that an MCP client connected through `.mcp.json` can run the
+      same actions the dashboard offers, and that `confirm:` is what gates the
+      dangerous ones.
+* [ ] You know the MCP daemon on 127.0.0.1:7879 is part of the default install, that
+      it is a second unauthenticated loopback listener that can run actions, and that
+      `scripts/switchyard-mcp-manage.sh stop` (or the dashboard) turns it off.
 
 ## What Switchyard deliberately does not do
 

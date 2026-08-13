@@ -2,13 +2,18 @@
 
 Switchyard is a single Node process that reads a declarative service catalogue,
 probes each service through a provider adapter, and serves both a JSON API and a
-static React dashboard. There is no database, no queue and no agent: state lives
-in memory and the YAML files are the source of truth.
+static React dashboard. A second, optional process speaks MCP — over stdio, or as a
+loopback HTTP daemon — and is a client of that same API. There is no database and no queue: state lives in memory
+and the YAML files are the source of truth.
 
 ```
                           ┌──────────────────────────────────────────┐
   browser (React SPA)     │ packages/web                             │
   ── REST ──────────────► │  TanStack Query cache ◄── SSE /api/events │
+                          └──────────────────────────────────────────┘
+  MCP client              ┌──────────────────────────────────────────┐
+  ── stdio or HTTP ─────► │ packages/mcp     tools, text rendering    │
+                          │                  stdio · :7879 daemon     │
                           └──────────────────────────────────────────┘
                                             │  http, 127.0.0.1:7878
                           ┌─────────────────▼────────────────────────┐
@@ -21,6 +26,8 @@ in memory and the YAML files are the source of truth.
                           │ core/monitor.ts  resource sampler, own   │
                           │  + alerts.ts     interval, counter state,│
                           │                  alert state machine     │
+                          │  + resource-     bounded sample ring,    │
+                          │    history.ts    statistics, bucketing   │
                           ├──────────────────────────────────────────┤
                           │ providers/*      command · systemd ·     │
                           │                  compose · docker        │
@@ -30,6 +37,11 @@ in memory and the YAML files are the source of truth.
                                             │ argv, no shell
                                       local processes
 ```
+
+Both front ends are clients of the same HTTP API and hold no authority of their
+own. The MCP server in particular has no `ServiceManager`, no providers, no monitor
+loop, no alert machine and no config parser — a second copy of any of those could
+only ever disagree with the dashboard.
 
 ## Technology choices
 
@@ -44,6 +56,7 @@ in memory and the YAML files are the source of truth.
 | Server state | TanStack Query | cache + retries + background refetch, patched from SSE |
 | Live updates | Server-sent events | one-directional is all this needs; reconnects for free; no WebSocket dependency |
 | Animation | plain CSS keyframes | see "Animation belongs in CSS" below — no animation library at all |
+| Agent access | `@modelcontextprotocol/sdk`, stdio + streamable HTTP | protocol conformance and version drift stay an upstream concern; the alternative was hand-rolling JSON-RPC to save dependencies this tool does not otherwise carry |
 
 Deliberately absent: database, message queue, container orchestration,
 authentication, RBAC, plugin registry.
@@ -118,6 +131,8 @@ packages/server/src
 │   ├── monitor.ts        the sampling loop and its per-service counter state
 │   ├── sample-batch.ts   per-tick batched docker stats / docker ps
 │   ├── alerts.ts         alert state machine (for / hysteresis / cooldown)
+│   ├── resource-history  bounded sample ring, statistics, bucketing
+│   ├── resource-view.ts  measurement + unit + threshold + threshold state
 │   ├── events.ts         typed event bus behind the SSE endpoint
 │   ├── views.ts          wire projections + secret redaction
 │   ├── errors.ts         SwitchyardError → HTTP status + code
@@ -142,6 +157,21 @@ packages/web/src
 ├── lib/                  api client, wire types, hooks, formatting, status map
 └── components/           TopBar, FilterBar, ServiceCard, ServiceTable, ServiceDrawer,
                           LogPane, ActionControls, ConfirmDialog, Toasts, Logo
+```
+
+```
+packages/mcp/src
+├── index.ts              CLI, transport dispatch, stderr-only diagnostics
+├── server.ts             McpServer construction and tool registration
+├── http.ts               optional HTTP daemon: stateless, loopback-only
+├── config.ts             transport, base URL, timeouts
+├── client.ts             typed fetch client; API errors → readable tool results
+├── format.ts             bytes/percent/duration/threshold rendering for text blocks
+├── wire.ts               hand-mirrored wire types (no build-time dep on the server)
+└── tools/                admin · services · resources · logs · actions
+
+packages/mcp/test         node:test suites: a fake Switchyard over loopback HTTP,
+                          and the tools driven through a real MCP client
 ```
 
 ## Design decisions worth knowing
@@ -186,6 +216,49 @@ often the machine looks and nothing else. Clearing needs the value to fall below
 machine in `core/alerts.ts` is pure — values, config, `now` in; transitions out —
 which is why the flapping, escalation and cooldown rules are testable without
 waiting in real time.
+
+**Sample history is bounded twice and never written to disk.** Answering "sustained
+or a spike?" needs more than the latest reading, so `core/resource-history.ts` keeps
+a per-service ring of samples. It is bounded by the configured retention *and* by a
+hard cap of 2000 samples per service, because the retention is a time and the
+interval can be as low as 2 s. Only root values are kept — retaining the
+per-container breakdown would multiply the set by the size of a compose project for
+a view nothing asks of history. Nothing is persisted: action history records what a
+person did, whereas samples are a projection of the machine, and a restart starting
+a fresh window is honest rather than lossy. Statistics live on the server because
+deciding what "above the warning threshold" means requires the resolved thresholds,
+which only this process has.
+
+**Threshold state is a read of the alert machine, not a second copy of it.**
+`/api/resources` reports a breach that has started but not yet lasted `for` as
+`pending`, with the time left before it activates. That comes from
+`AlertTracker.pendingFor()` — a read-only view of state the machine already keeps —
+so there is exactly one implementation of what a breach is. An active alert always
+wins over a pending crossing, because the alert is the machine's own verdict,
+hysteresis and de-escalation included.
+
+**Two MCP transports, because stdio cannot be global or managed.** stdio is the
+default and the right answer for a single project: the client owns the process
+lifetime and no port is opened. It cannot do two things, though. A user-scope client
+entry has to name something that resolves identically from every project, and
+`${CLAUDE_PROJECT_DIR}` resolves to whichever project is open — so a global stdio
+entry needs an absolute path or a linked bin, both of which pin the checkout in
+place. And a process that exists only for the duration of a connection has no pid to
+track, so Switchyard cannot manage it. The HTTP mode answers both with a URL. It is
+stateless — a fresh server and transport per request, since every tool is a single
+call to the Switchyard API and sessions would only add a map of live transports to
+expire — and refuses any non-loopback bind outright, with no escape hatch, because
+it can run actions.
+
+**The MCP surface is designed around questions, not endpoints.** `list_services`
+projects the summary down hard rather than forwarding `/api/services`, which is
+about 20 kB for ten services and mostly irrelevant to "what is running?".
+`get_resource_usage` is one call for the whole machine because "which service is
+hottest?" is a comparison. Every tool result carries its full answer in the text
+block, with `structuredContent` as a mirror — a client is guaranteed to render the
+text, so nothing essential may live only in the structured half. Confirmation is
+enforced in the handler: `destructiveHint` is advice a client may ignore, whereas an
+action the configuration marks `confirm:` must not run just because a model asked.
 
 **Samples do not drive SSE traffic.** Resource values differ on every tick, so
 including them verbatim in the service-summary fingerprint would push an update
