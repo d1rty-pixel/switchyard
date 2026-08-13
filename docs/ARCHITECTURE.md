@@ -1,333 +1,227 @@
 # Architecture
 
-Switchyard is a single Node process that reads a declarative service catalogue,
-probes each service through a provider adapter, and serves both a JSON API and a
-static React dashboard. A second, optional process speaks MCP — over stdio, or as a
-loopback HTTP daemon — and is a client of that same API. There is no database and no queue: state lives in memory
-and the YAML files are the source of truth.
+Switchyard has three main parts:
 
-```
-                          ┌──────────────────────────────────────────┐
-  browser (React SPA)     │ packages/web                             │
-  ── REST ──────────────► │  TanStack Query cache ◄── SSE /api/events │
-                          └──────────────────────────────────────────┘
-  MCP client              ┌──────────────────────────────────────────┐
-  ── stdio or HTTP ─────► │ packages/mcp     tools, text rendering    │
-                          │                  stdio · :7879 daemon     │
-                          └──────────────────────────────────────────┘
-                                            │  http, 127.0.0.1:7878
-                          ┌─────────────────▼────────────────────────┐
-                          │ routes/api.ts    validation, SSE stream  │
-                          ├──────────────────────────────────────────┤
-                          │ core/manager.ts  status cache, polling,  │
-                          │                  per-service lock,       │
-                          │                  service history, events │
-                          ├──────────────────────────────────────────┤
-                          │ core/monitor.ts  resource sampler, own   │
-                          │  + alerts.ts     interval, counter state,│
-                          │                  alert state machine     │
-                          │  + resource-     bounded sample ring,    │
-                          │    history.ts    statistics, bucketing   │
-                          ├──────────────────────────────────────────┤
-                          │ providers/*      command · systemd ·     │
-                          │                  compose · docker        │
-                          ├──────────────────────────────────────────┤
-                          │ core/exec.ts     the only spawn() call   │
-                          └─────────────────┬────────────────────────┘
-                                            │ argv, no shell
-                                      local processes
+- `packages/server` owns configuration, providers, service state, resource monitoring and the HTTP API.
+- `packages/web` is a React client of that API and its SSE event stream.
+- `packages/mcp` exposes the same API to MCP clients over stdio or loopback HTTP.
+
+The YAML configuration is the source of truth. Runtime state is kept in memory, except for the bounded service activity log in `.state/history.jsonl`. There is no database or queue.
+
+```text
+browser / React SPA
+    │ REST + SSE
+    ▼
+┌─────────────────────────────────────────────────────┐
+│ Fastify API                                         │
+│                                                     │
+│ ServiceManager        ResourceMonitor               │
+│ status + actions      samples + alerts + trends    │
+│       │                       │                     │
+│       └──────────┬────────────┘                     │
+│                  ▼                                  │
+│       command · systemd · compose · docker         │
+│                  │                                  │
+│              core/exec.ts                           │
+└──────────────────┼──────────────────────────────────┘
+                   ▼
+             local processes
+
+MCP client ── stdio / :7879 ──► packages/mcp ── HTTP ──► API
 ```
 
-Both front ends are clients of the same HTTP API and hold no authority of their
-own. The MCP server in particular has no `ServiceManager`, no providers, no monitor
-loop, no alert machine and no config parser — a second copy of any of those could
-only ever disagree with the dashboard.
+The web and MCP packages do not own service lifecycle state. In particular, the MCP server does not duplicate providers, monitoring, configuration parsing or the `ServiceManager`; it translates MCP tool calls into API requests.
 
-## Technology choices
+## Technology
 
-| Layer | Choice | Why |
-| --- | --- | --- |
-| Runtime | Node 20+, TypeScript, ESM | one language across dashboard, server and MCP; one `npm install`; no compiled toolchain |
-| HTTP | Fastify 5 | small, fast, good error hooks; `@fastify/static` serves the built UI |
-| Validation | zod | the config schema *is* the documentation, and the same library validates request params |
-| Config | YAML (js-yaml) | comments matter in a file that describes commands |
-| Logging | pino | JSON lines for piping, pretty output on a TTY |
-| UI | React 18 + Vite + Tailwind v4 | fast builds, no CSS framework look, design tokens in one file |
-| Server state | TanStack Query | cache + retries + background refetch, patched from SSE |
-| Live updates | Server-sent events | one-directional is all this needs; reconnects for free; no WebSocket dependency |
-| Animation | plain CSS keyframes | see "Animation belongs in CSS" below — no animation library at all |
-| Agent access | `@modelcontextprotocol/sdk`, stdio + streamable HTTP | protocol conformance and version drift stay an upstream concern; the alternative was hand-rolling JSON-RPC to save dependencies this tool does not otherwise carry |
+| Layer | Choice |
+| --- | --- |
+| Runtime | Node 20+, TypeScript, ESM |
+| HTTP | Fastify 5 |
+| Validation | zod |
+| Config | YAML via js-yaml |
+| Logging | pino |
+| UI | React 18, Vite, Tailwind v4 |
+| Client state | TanStack Query |
+| Live updates | server-sent events |
+| Agent access | `@modelcontextprotocol/sdk` |
 
-Deliberately absent: database, message queue, container orchestration,
-authentication, RBAC, plugin registry.
+The application intentionally has no database, message queue, authentication/RBAC layer or plugin registry. It is designed as a local workstation tool rather than a multi-user control plane.
 
-## Request and event flow
+## Server flow
 
-A status poll:
+### Status polling
 
-1. `ServiceManager.refreshAll()` runs every `statusIntervalMs` with at most
-   `statusConcurrency` probes in flight.
-2. Each probe calls `provider.status(context)`; the provider runs one or more
-   commands through the injected `exec` and returns a `StatusResult`.
-3. The manager stores the result, timestamps it, and emits
-   `service:checked` always plus `service:update` when the projected summary
-   changed (fingerprint comparison, so idle services generate no traffic).
-4. The browser patches its query cache from those events; the 30 s `refetchInterval`
-   is only a safety net for a dropped stream.
+`ServiceManager.refreshAll()` runs every `statusIntervalMs`, limited by `statusConcurrency`. Each provider returns a `StatusResult`; the manager stores it and emits `service:checked`. A `service:update` event is emitted when the projected summary changes.
 
-An action:
+The browser applies SSE updates to its TanStack Query cache. Periodic refetching remains as a fallback if the event stream is interrupted.
 
-1. `POST /api/services/:id/actions/:action`.
-2. The id is looked up in the service map (`404` if unknown); the action id is
-   looked up in the provider's action table (`404` with the list of valid ids).
-3. If the service is already busy → `409`. Otherwise it is marked busy, which the
-   UI renders as a transitional state (`starting`/`stopping`) with all controls
-   for that service disabled.
-4. `provider.runAction()` runs the configured argv. stdout/stderr, exit code and
-   duration are captured.
-5. The outcome is appended to the service history, `action:end` is emitted, and
-   after a 500 ms settle delay the status is re-probed — signals like
-   `nginx -s quit` return before the process is actually gone.
-6. The response carries the outcome *and* the fresh service summary, so the card
-   updates in one round trip.
+### Actions
 
-A resource sampling tick (see "Resource monitoring is a second loop" below):
+An action request follows this path:
 
-1. `ResourceMonitor.tick()` runs every `monitoring.interval`, never overlapping
-   itself, and builds one `SampleBatch` shared by all providers in that tick.
-2. Services with an action in flight are skipped and their counter state is
-   dropped — a restart is not a measurement.
-3. `provider.sample()` returns gauges (memory) and cumulative counters (CPU
-   nanoseconds, I/O byte totals). The monitor turns counters into rates against
-   the previous reading for that service.
-4. `AlertTracker.evaluate()` compares the values against the resolved thresholds
-   and returns state transitions — activation only after `for` has elapsed,
-   clearing only below `threshold × clearBelow`.
-5. Transitions are emitted as `resource:alert`; the sample lands on the service
-   summary, which is pushed only when its *quantized* digest changed.
+1. `POST /api/services/:id/actions/:action` reaches the API.
+2. The service and action ids are resolved against the loaded configuration and provider capability table.
+3. The manager rejects concurrent actions for the same service with `409`.
+4. `provider.runAction()` executes the configured argv through `core/exec.ts`.
+5. The result is recorded in service history and emitted as `action:end`.
+6. After a short settle delay the service is probed again and the response includes the refreshed summary.
 
-Failed commands return `{ ok: false, message, output }` with HTTP status 200.
-Only protocol-level problems (unknown service, unknown action, conflict,
-unsupported capability) use 4xx.
+Command failures are action results (`ok: false`) rather than HTTP protocol errors. Unknown ids, conflicts and unsupported capabilities use 4xx responses.
 
-## Modules
+### Resource sampling
 
-```
+Resource monitoring is independent of status polling because rate metrics require state between samples and usually need a different interval.
+
+`ResourceMonitor.tick()`:
+
+1. creates one `SampleBatch` for the tick;
+2. skips services with actions in flight;
+3. asks each provider for attributable resource counters and gauges;
+4. derives rates from cumulative counters;
+5. evaluates configured thresholds through `AlertTracker`;
+6. stores the sample in the in-memory resource history and emits alert transitions.
+
+Host-wide Docker data is fetched once per sampling tick and shared between Docker and Compose services through `SampleBatch`.
+
+## Module map
+
+```text
 packages/server/src
-├── index.ts              CLI, config load, loopback guard, lifecycle
-├── app.ts                Fastify app, error mapping, static UI, SPA fallback
-├── types.ts              domain types shared by providers and the API
+├── index.ts              CLI, config load, bind checks, lifecycle
+├── app.ts                Fastify setup, error mapping, static UI
+├── types.ts              domain and API types
 ├── config/
-│   ├── schema.ts         zod schemas for switchyard.yaml and services.d/*
-│   ├── units.ts          strict parsers for 30s / 2GiB / 50MiB/s / 150%
-│   ├── monitoring.ts     monitoring schema + global→service threshold merge
-│   ├── load.ts           discovery, YAML parsing, per-service files, merge
-│   └── diff.ts           reload preview: service-set diff without applying it
+│   ├── schema.ts         configuration schemas
+│   ├── units.ts          duration, byte-rate and percentage parsing
+│   ├── monitoring.ts     monitoring defaults and threshold resolution
+│   ├── load.ts           YAML discovery and loading
+│   └── diff.ts           reload preview
 ├── core/
-│   ├── exec.ts           the single spawn() choke point
-│   ├── manager.ts        registry, status cache, polling, locking, history
-│   ├── history-store.ts  service history log, replayed and purged on boot
-│   ├── resources.ts      resource model, counter→rate maths, sample digest
-│   ├── monitor.ts        the sampling loop and its per-service counter state
-│   ├── sample-batch.ts   per-tick batched docker stats / docker ps
-│   ├── alerts.ts         alert state machine (for / hysteresis / cooldown)
-│   ├── resource-history  bounded sample ring, statistics, bucketing
-│   ├── resource-view.ts  measurement + unit + threshold + threshold state
-│   ├── events.ts         typed event bus behind the SSE endpoint
-│   ├── views.ts          wire projections + secret redaction
-│   ├── errors.ts         SwitchyardError → HTTP status + code
-│   └── logger.ts         pino instance
+│   ├── exec.ts           subprocess execution
+│   ├── manager.ts        service registry, status, actions and activity
+│   ├── history-store.ts  persisted activity log
+│   ├── resources.ts      resource model and counter-to-rate conversion
+│   ├── monitor.ts        sampling loop
+│   ├── sample-batch.ts   per-tick shared backend data
+│   ├── alerts.ts         alert state machine
+│   ├── resource-history.ts
+│   ├── resource-view.ts
+│   ├── events.ts         typed event bus
+│   ├── views.ts          API projections and redaction
+│   ├── errors.ts
+│   └── logger.ts
 ├── providers/
-│   ├── types.ts          the Provider interface and ProviderContext
-│   ├── index.ts          registry (add a provider here)
-│   ├── command.ts        predefined commands, pid files
-│   ├── systemd.ts        systemctl show/verbs, journalctl
-│   ├── compose.ts        docker compose ps/up/down/pull/logs
-│   └── docker.ts         single container inspect/start/stop/pull/logs
-└── routes/api.ts         endpoints + event stream
-
-packages/server/test      node:test suites, run with `npm test` (tsx loader)
+│   ├── types.ts
+│   ├── index.ts
+│   ├── command.ts
+│   ├── systemd.ts
+│   ├── compose.ts
+│   └── docker.ts
+└── routes/api.ts
 ```
 
-```
+```text
 packages/web/src
-├── main.tsx              QueryClient + ToastProvider
-├── App.tsx               layout, filtering, sorting, action dispatch
-├── index.css             design tokens, backdrop, glass/card primitives
-├── lib/                  api client, wire types, hooks, formatting, status map
-└── components/           TopBar, FilterBar, ServiceCard, ServiceTable, ServiceDrawer,
-                          LogPane, ActionControls, ConfirmDialog, Toasts, Logo
+├── main.tsx
+├── App.tsx
+├── index.css
+├── lib/                  API client, wire types, hooks and formatting
+└── components/           dashboard, cards, table, drawer, logs and dialogs
 ```
 
-```
+```text
 packages/mcp/src
-├── index.ts              CLI, transport dispatch, stderr-only diagnostics
-├── server.ts             McpServer construction and tool registration
-├── http.ts               optional HTTP daemon: stateless, loopback-only
-├── config.ts             transport, base URL, timeouts
-├── client.ts             typed fetch client; API errors → readable tool results
-├── format.ts             bytes/percent/duration/threshold rendering for text blocks
-├── wire.ts               hand-mirrored wire types (no build-time dep on the server)
-└── tools/                admin · services · resources · logs · actions
-
-packages/mcp/test         node:test suites: a fake Switchyard over loopback HTTP,
-                          and the tools driven through a real MCP client
+├── index.ts              CLI and transport selection
+├── server.ts             MCP server and tool registration
+├── http.ts               loopback HTTP transport
+├── config.ts
+├── client.ts             Switchyard HTTP client
+├── format.ts
+├── wire.ts
+└── tools/                admin, services, resources, logs and actions
 ```
 
-## Design decisions worth knowing
+## Provider model
 
-**Providers own their vocabulary.** The dashboard renders whatever `metrics`,
-`children`, `ports` and `warnings` a provider returns; it has no compose- or
-systemd-specific code. Adding a provider therefore needs no frontend change.
+Providers translate one backend into Switchyard's common service model. A provider supplies its configuration schema, available actions, status implementation and optional logs/resource sampling.
 
-**Capability tables double as authorisation.** `provider.actions()` is the only
-source of dispatchable actions: every request is checked against it, so the
-table doubles as the access-control list.
+The frontend is provider-agnostic. Providers return common fields such as `metrics`, `children`, `ports` and `warnings`; the dashboard renders those fields without checking whether the service came from systemd, Docker or something else.
 
-**Resource monitoring is a second loop, not part of the status poll.** CPU and
-I/O rates are differences between two readings, so sampling needs to remember the
-previous one. `provider.status()` is stateless and runs from several places — the
-boot sweep, a manual refresh, after every action — which would make the time
-delta between two readings arbitrary. The two loops also want different
-frequencies: status wants to be quick, sampling wants `docker stats` (a full
-daemon round trip, seconds on a busy host) to run rarely. The sampler therefore
-has its own interval, its own counter state and its own concurrency, and skips
-any service with an action in flight.
+`provider.actions()` is also the dispatch boundary. An API or MCP caller cannot provide an argv array; it can only select an action already declared by the provider for that service.
 
-**One backend call per tick, not per service.** `docker stats` reports every
-container on the host, so running it once per Docker or Compose service would
-spawn N processes for data one call already contains. `core/sample-batch.ts`
-memoizes it per tick — the first provider to ask starts the call, the rest await
-the same promise. It is rebuilt every tick, which is also what stops it from
-serving stale numbers.
+All subprocesses go through `context.exec` or `context.execRaw`, backed by `core/exec.ts`. This keeps timeout handling, output limits and shell-free execution in one place.
 
-**Absent means not measurable, never zero.** systemd has no per-unit network
-accounting and reports disk I/O only when the unit sets `IOAccounting=yes`; the
-`command` provider sees one PID, not a process tree. Those metrics stay *missing*
-rather than being reported as 0, and every sample carries an `attribution` string
-the UI shows, so nobody has to guess whether a number covers child processes.
-Switchyard never edits unit files to enable accounting, and never limits or kills
-anything — containment is a separate concern from detection.
+## Resource model
 
-**Alerts are time-based and hysteretic.** `for: 30s` means elapsed wall-clock
-time, not a number of samples, so changing `monitoring.interval` changes how
-often the machine looks and nothing else. Clearing needs the value to fall below
-`threshold × clearBelow`, otherwise a value resting on the threshold flaps. The
-machine in `core/alerts.ts` is pure — values, config, `now` in; transitions out —
-which is why the flapping, escalation and cooldown rules are testable without
-waiting in real time.
+Providers report only resources they can attribute to the service:
 
-**Sample history is bounded twice and never written to disk.** Answering "sustained
-or a spike?" needs more than the latest reading, so `core/resource-history.ts` keeps
-a per-service ring of samples. It is bounded by the configured retention *and* by a
-hard cap of 2000 samples per service, because the retention is a time and the
-interval can be as low as 2 s. Only root values are kept — retaining the
-per-container breakdown would multiply the set by the size of a compose project for
-a view nothing asks of history. Nothing is persisted: the service history records
-discrete events, whereas samples are a projection of the machine, and a restart
-starting a fresh window is honest rather than lossy. Statistics live on the server because
-deciding what "above the warning threshold" means requires the resolved thresholds,
-which only this process has.
+- systemd uses cgroup accounting exposed by `systemctl show`;
+- Docker uses container statistics;
+- Compose aggregates the project's containers;
+- `command` uses the pid-file process and its threads.
 
-**Threshold state is a read of the alert machine, not a second copy of it.**
-`/api/resources` reports a breach that has started but not yet lasted `for` as
-`pending`, with the time left before it activates. That comes from
-`AlertTracker.pendingFor()` — a read-only view of state the machine already keeps —
-so there is exactly one implementation of what a breach is. An active alert always
-wins over a pending crossing, because the alert is the machine's own verdict,
-hysteresis and de-escalation included.
+An unavailable metric is omitted, not reported as zero. Samples include an attribution string so the UI can state what the measurement covers.
 
-**Two MCP transports, because stdio cannot be global or managed.** stdio is the
-default and the right answer for a single project: the client owns the process
-lifetime and no port is opened. It cannot do two things, though. A user-scope client
-entry has to name something that resolves identically from every project, and
-`${CLAUDE_PROJECT_DIR}` resolves to whichever project is open — so a global stdio
-entry needs an absolute path or a linked bin, both of which pin the checkout in
-place. And a process that exists only for the duration of a connection has no pid to
-track, so Switchyard cannot manage it. The HTTP mode answers both with a URL. It is
-stateless — a fresh server and transport per request, since every tool is a single
-call to the Switchyard API and sessions would only add a map of live transports to
-expire — and refuses any non-loopback bind outright, with no escape hatch, because
-it can run actions.
+CPU and I/O values originate as cumulative counters. The monitor keeps the previous sample for each service and derives rates from the elapsed interval. Counter state is dropped while actions run and when attribution changes.
 
-**The MCP surface is designed around questions, not endpoints.** `list_services`
-projects the summary down hard rather than forwarding `/api/services`, which is
-about 20 kB for ten services and mostly irrelevant to "what is running?".
-`get_resource_usage` is one call for the whole machine because "which service is
-hottest?" is a comparison. Every tool result carries its full answer in the text
-block, with `structuredContent` as a mirror — a client is guaranteed to render the
-text, so nothing essential may live only in the structured half. Confirmation is
-enforced in the handler: `destructiveHint` is advice a client may ignore, whereas an
-action the configuration marks `confirm:` must not run just because a model asked.
+### Alerts
 
-**Samples do not drive SSE traffic.** Resource values differ on every tick, so
-including them verbatim in the service-summary fingerprint would push an update
-per service per interval. They enter it as a quantized digest (5 % CPU, 32 MiB
-memory, 1 MiB/s rates) instead: real movement is pushed, noise is not.
+`AlertTracker` is a time-based state machine. Thresholds may define a sustained `for` period, warning and critical levels, `clearBelow` hysteresis and notification cooldowns. Pending threshold state is read from the same tracker rather than recomputed elsewhere.
 
-**Status is a live projection, but events are not.** Every card is rebuilt from the
-last probe plus the busy flag. What *happened* cannot be rebuilt that way, so the
-service history is the one thing that survives a restart, replayed from the
-`.state/history.jsonl` log next to the config file (see `core/history-store.ts`).
-It holds more than actions: alerts, state changes, probe failures and config
-changes go in too, because an alert that fired while no dashboard tab was open
-otherwise leaves nothing behind but a log line.
+Alerts report transitions; they do not enforce resource limits or trigger lifecycle actions.
 
-**History records transitions, not conditions.** A service failing for an hour is
-one entry, not one per status poll — the manager holds the previous state and the
-previous probe error and writes only when either flips. Resource alerts need no
-such rule of their own: `for`, `cooldown` and the `clearBelow` hysteresis in
-`core/alerts.ts` already decide what counts as news, so the manager records every
-`AlertEvent` it is handed.
+### Resource history
 
-**The log is append-only between compactions, never rewritten on write.** Appends
-are chained through one promise so two services finishing at once cannot interleave
-their lines, and no action waits on the disk. The file is purged — by age and by
-the per-service limit — at startup, where it is fully parsed anyway, and again
-after every 500 appends so a process that runs for weeks still shrinks. The purge
-writes a temporary file and renames it over the original, so an interrupted
-compaction costs nothing.
+`core/resource-history.ts` keeps a bounded in-memory sample history for trend queries. Retention is limited both by `monitoring.history` and a hard cap of 2000 samples per service. Only service-level values are retained, not Compose child detail.
 
-**Animation belongs in CSS, and stops when the tab is hidden.** This is a tool
-that lives on a second monitor, so it spends most of its life in a background
-tab — where browsers stop advancing animation frames. An animation that is
-running but not progressing pins its element to the *first* keyframe: a drawer
-parked off-screen, cards frozen at `opacity: 0`, an overlay that never looks
-open. Two consequences shape the frontend:
+The API computes min, max, average, p95, latest value, sample count, threshold share and a bounded bucketed series. Resource samples are not persisted; a restart starts a new trend window.
 
-* animations are CSS keyframes only (no animation library, and nothing driven by
-  `requestAnimationFrame`), and `main.tsx` marks the document with
-  `data-hidden` so a single CSS rule disables them while the tab is hidden —
-  every element then renders at its final state;
-* overlay mount lifecycle never waits for an animation to report completion. The
-  drawer and confirm dialog are driven by state plus a timer, because a modal
-  that fails to unmount leaves a full-viewport backdrop swallowing every click.
+Resource values are quantized before contributing to the service-summary fingerprint. This prevents small changes on every sample from producing an SSE update for every service while still pushing meaningful movement.
 
-**The overflow menu renders through a portal.** Inside the card it would be a
-sibling of the other grid items — painted over by later cards — and could not
-flip above its trigger near the bottom of the viewport.
+## Service activity history
 
-**Status colour is never the only signal.** Each state also has a distinct shape
-and motion (pulse, hollow ring, sweeping arc, triangle, cross, dashed ring).
+Discrete events are persisted separately from resource samples. The history contains six entry kinds:
+
+- `action` — completed actions;
+- `rejected` — refused actions;
+- `alert` — resource-alert transitions;
+- `state` — service-state transitions;
+- `probe` — status or resource-probe failure/recovery;
+- `config` — service definition changes after reload.
+
+State and probe entries are recorded on transitions only. The first successful observation after startup establishes the baseline rather than creating a synthetic state change.
+
+`core/history-store.ts` writes JSONL to `.state/history.jsonl`. Appends are serialized so concurrent service events cannot interleave. The file is replayed at startup and compacted by age and per-service count at startup and periodically after writes. Compaction uses a temporary file and rename. Action-only history written by older versions remains compatible.
+
+## MCP
+
+The MCP package has two transports but one implementation of the tools.
+
+**stdio** is intended for project-local use. The MCP client owns the process and no listener is opened. The committed `.mcp.json` uses this mode.
+
+**HTTP** provides a long-running endpoint at `127.0.0.1:7879`, useful for user-scope registration and manageable as a Switchyard service. The listener is restricted to loopback and has no remote-bind override.
+
+Tool responses are shaped for agent use rather than mirroring HTTP endpoints verbatim. For example, service listing is compact and resource usage can compare all services in one call. Structured content mirrors the textual answer rather than carrying information unavailable in text.
+
+Actions marked `confirm:` require `confirm: true` in the MCP handler. This is enforced server-side rather than relying only on MCP annotations.
+
+## Frontend
+
+The browser uses TanStack Query for API state and patches the cache from SSE events. The server remains authoritative; the UI does not independently derive provider state or alert state.
+
+Animations are CSS-based and disabled while the document is hidden. Overlay lifecycle is state/timer driven rather than dependent on animation completion, which avoids hidden-tab animation suspension leaving drawers or modal backdrops mounted incorrectly.
+
+Menus that need to escape card stacking and clipping are rendered through a portal. Service state is represented by both colour and shape.
 
 ## Adding a provider
 
-1. Create `packages/server/src/providers/<name>.ts` and export a `Provider`:
-   a `type` string, a zod `configSchema` for the `provider:` block, `actions()`,
-   `status()`, `runAction()`, `supportsLogs()` and optionally `logs()` and
-   `sample()`.
-2. Register it in `providers/index.ts`.
-3. Use only `context.exec` / `context.execRaw` for subprocesses — never
-   `child_process` directly, so timeouts, output caps and logging stay uniform.
-4. Return rich status: `metrics` for numbers, `children` for sub-units,
-   `warnings` for things the user should notice, `output` for the raw command
-   result shown in the drawer.
-5. Optionally implement `sample()` for resource monitoring. Report only what the
-   backend can attribute to the service, return cumulative counters as they were
-   read (the monitor derives rates), set `attribution` to what the numbers cover,
-   and return `null` when there is nothing to measure. Use the `batch` argument
-   for anything that returns host-wide data.
-6. Document the privileges it needs in `docs/PRIVILEGES.md`.
+1. Create `packages/server/src/providers/<name>.ts` and implement `Provider`.
+2. Define the provider `type`, zod `configSchema`, `actions()`, `status()`, `runAction()` and `supportsLogs()`; add `logs()` and `sample()` where applicable.
+3. Register it in `providers/index.ts`.
+4. Use `context.exec` / `context.execRaw` for subprocesses.
+5. Return common status fields (`metrics`, `children`, `warnings`, `output`) instead of adding provider-specific UI logic.
+6. If resource sampling is supported, report only attributable values and use the per-tick batch for host-wide backend calls.
+7. Document required privileges in `docs/PRIVILEGES.md`.
 
-No API or UI changes are required; `/api/meta` lists providers automatically and
-the dashboard renders the new fields.
+No API or frontend registration is required; `/api/meta` discovers registered providers and the dashboard renders the common status model.

@@ -4,10 +4,9 @@
 
 # Switchyard
 
-**A control panel for the individually managed services on your Linux workstation.**
+**One control panel for the services running on your Linux workstation.**
 
-nginx instances, Compose stacks, systemd units, containers and hand-written
-scripts — each with its own control mechanism, all on one screen.
+nginx instances, Compose stacks, systemd units, containers and hand-written scripts — each with its own lifecycle, all on one screen.
 
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A5%2020.11-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)](package.json)
@@ -15,304 +14,244 @@ scripts — each with its own control mechanism, all on one screen.
 [![Platform](https://img.shields.io/badge/platform-linux-333333?style=flat-square&logo=linux&logoColor=white)](#requirements)
 [![Providers](https://img.shields.io/badge/providers-command%20%C2%B7%20systemd%20%C2%B7%20compose%20%C2%B7%20docker-6E56CF?style=flat-square)](#providers)
 [![MCP](https://img.shields.io/badge/MCP-stdio%20%2B%20HTTP-D97706?style=flat-square)](#mcp-interface)
-[![Dependencies](https://img.shields.io/badge/database-none-success?style=flat-square)](#scope)
 
 </div>
 
 ---
 
-Switchyard treats each local service as its own thing: one
-is an nginx with a custom prefix, one is a Compose project spread over two files,
-one is a Perl app under hypnotoad, one is a shell script with a pid file. Each
-service declares which provider drives it and which actions exist; the dashboard
-renders whatever that provider reports.
+Switchyard is for workstations where local services do not fit one lifecycle model. One may be an nginx instance with a custom prefix, another a Compose project spread over two files, another a Perl application under hypnotoad, and another a shell script with a pid file. Each service declares how it is controlled; Switchyard gives them one dashboard.
 
-* **Declarative** — one YAML file per service in `services.d/`.
-* **Safe by construction** — no caller can send a command, browser or agent
-  alike. They name a service id and an action id; both are looked up in tables
-  built from your config. No shell, ever.
-* **Local-only** — binds `127.0.0.1`, no authentication, no telemetry.
-* **Live** — status is pushed over server-sent events, not polled by the browser.
-* **Agent-ready** — the same services, actions and resource numbers over
-  [MCP](#mcp-interface), for Claude Code and anything else that speaks it.
-* **Hackable** — ~14 kLOC across dashboard, server and MCP; four providers; no
-  database.
+- **Declarative** — one YAML definition per service.
+- **Provider-based** — `command`, `systemd`, `compose` and `docker` are built in.
+- **Controlled execution** — callers select configured service and action ids; the API never accepts arbitrary commands. Subprocesses run without a shell.
+- **Live** — status changes arrive over server-sent events.
+- **Resource-aware** — CPU, memory, disk and network metrics where the provider can attribute them, with optional thresholds and alerts.
+- **Agent-ready** — the same service model is available through MCP over stdio or loopback HTTP.
+- **Hackable** — a small TypeScript codebase, four providers, no database and no plugin framework.
 
 ## Requirements
 
-* Linux with systemd (only needed for the `systemd` provider)
-* Node.js ≥ 20.11
-* Optional: Docker + Compose v2 for the `compose` / `docker` providers
+- Linux
+- Node.js ≥ 20.11
+- systemd for the `systemd` provider
+- Docker + Compose v2 for the `docker` and `compose` providers
 
 ## Install and run
 
 ```bash
-git clone git@github.com:d1rty-pixel/switchyard.git && cd switchyard
+git clone git@github.com:d1rty-pixel/switchyard.git
+cd switchyard
 npm install
-npm run build          # builds the UI, the server and the MCP server
-npm start              # http://127.0.0.1:7878
+npm run build
+npm start
 ```
 
-That is the whole setup. The dashboard comes up with Switchyard managing its own
-server process, from the one tracked definition
-[`services.d/00-switchyard.yaml`](services.d/00-switchyard.yaml) — no configuration
-to write first, nothing to copy, no privileges needed.
+The dashboard is available at `http://127.0.0.1:7878`.
 
-Everything else you put in `services.d/` stays local: the directory is git-ignored
-apart from that one file, because service definitions describe *your* machine.
-Copy-ready examples for **every provider and option** live in
-[`examples/services.d/`](examples/services.d/); several run as-is with no path
-editing:
+A fresh checkout already contains definitions for Switchyard itself and its optional MCP daemon. Switchyard does not automatically start managed services; the definitions simply make them visible and controllable from the dashboard.
+
+Machine-specific service definitions belong in `services.d/` and are ignored by git. Copy-ready examples live in `examples/services.d/`:
 
 ```bash
-# an unprivileged nginx instance and a pid-file worker, both bundled
-cp examples/services.d/10-nginx-local.yaml examples/services.d/11-worker-script.yaml services.d/
+cp examples/services.d/10-nginx-local.yaml \
+   examples/services.d/11-worker-script.yaml \
+   services.d/
 ```
 
-Service ids have to be unique across the directory.
-
-Development, with hot reload on the server and the UI:
+For development:
 
 ```bash
-npm run dev            # API on :7878 (tsx watch), UI on :5273 (Vite proxy)
+npm run dev            # API :7878, Vite UI :5273
+npm run typecheck
+npm test
 ```
 
-Running detached (background, survives closing the terminal), stopping, and
-checking status:
+For a detached server:
 
 ```bash
-scripts/switchyard-manage.sh start     # prints the dashboard URL once it's up
+scripts/switchyard-manage.sh start
 scripts/switchyard-manage.sh status
-scripts/switchyard-manage.sh stop
-scripts/switchyard-manage.sh restart
 scripts/switchyard-manage.sh logs -n 100
+scripts/switchyard-manage.sh stop
 ```
 
-This detaches the server with `setsid` and tracks it via a pid file under
-`.state/` — see the script's header comment for how. The shipped
-`services.d/00-switchyard.yaml` drives these same actions from the dashboard
-itself, which is why a fresh checkout already has a service on it.
-
-Validate the configuration without starting anything:
+Validate configuration without starting the server:
 
 ```bash
 node packages/server/dist/index.js --check
 ```
 
-Typechecks and tests:
-
-```bash
-npm run typecheck
-npm test               # node:test suites in packages/{server,mcp}/test, run via tsx
-```
-
-CLI flags: `--config <path>`, `--host <addr>`, `--port <n>`, `--check`,
-`--version`, `--help`. Environment: `SWITCHYARD_CONFIG`, `SWITCHYARD_LOG_LEVEL`.
-
-Config discovery order: `--config`, `$SWITCHYARD_CONFIG`, `./switchyard.yaml`,
-`~/.config/switchyard/switchyard.yaml`, `/etc/switchyard/switchyard.yaml`.
+Config discovery order is `--config`, `$SWITCHYARD_CONFIG`, `./switchyard.yaml`, `~/.config/switchyard/switchyard.yaml`, then `/etc/switchyard/switchyard.yaml`.
 
 ## Configuration
 
-Two layers:
+Switchyard uses two layers:
 
-* **`switchyard.yaml`** — global settings and group definitions.
-* **`services.d/*.yaml`** — one file per service, loaded automatically (sorted by
-  filename, non-recursive). Override the location with `serviceDirs:`.
+- `switchyard.yaml` for global settings, monitoring defaults and groups.
+- `services.d/*.yaml` for services. Files are loaded in filename order and non-recursively; `serviceDirs` can override the location.
 
 ```yaml
-# switchyard.yaml
 version: 1
 settings:
   host: 127.0.0.1
   port: 7878
-  statusIntervalMs: 6000       # background status poll
-  commandTimeoutMs: 30000      # default per-command timeout
+  statusIntervalMs: 6000
+  commandTimeoutMs: 30000
   logsTail: 200
-  historyLimit: 100            # history entries kept per service
-  historyRetention: 30d        # how long a persisted entry survives
+  historyLimit: 100
+  historyRetention: 30d
   statusConcurrency: 4
-  allowRemoteBind: false       # refuse non-loopback binds unless true
-monitoring:                    # resource sampling defaults, see below
+  allowRemoteBind: false
+monitoring:
   interval: 15s
-  history: 30m                 # sample retention for the trend queries
+  history: 30m
 serviceDirs: [services.d]
 groups:
   - { id: web, name: Web, icon: globe, order: 10 }
   - { id: containers, name: Containers, icon: container, order: 20 }
 ```
 
+A service definition describes presentation, lifecycle and provider-specific control:
+
 ```yaml
-# services.d/my-worker.yaml
-id: my-worker                  # [a-z0-9._-], used in URLs
+id: my-worker
 name: My worker
-description: What this thing is
-icon: cpu                      # lucide name, see packages/web/src/lib/icons.tsx
-type: command                  # provider
+description: Background worker
+icon: cpu
+type: command
 group: development
 tags: [example]
-enabled: true                  # false = ignored entirely (not polled, no API)
-hidden: false                  # true = still managed, just not listed
-workdir: /opt/my-worker        # cwd for every command of this service
-env:                           # merged into the command environment
+enabled: true
+hidden: false
+workdir: /opt/my-worker
+env:
   MY_WORKER_MODE: dev
 urls:
   - { label: local, url: 'http://127.0.0.1:9000/', primary: true }
 ports:
   - { port: 9000, label: http }
-confirm: [stop]                # extra confirmation prompts
-timeoutMs: 30000               # per-service command timeout
-order: 10                      # sort weight inside the group
-monitoring:                    # resource thresholds, see below
+confirm: [stop]
+timeoutMs: 30000
+order: 10
+monitoring:
   cpu: { warning: 150%, critical: 400%, for: 30s }
-provider: { ... }              # provider-specific, see below
+provider: { ... }
 ```
 
-**`enabled: false`** is the switch to reach for when you want a service out of the
-way without deleting its file: the service is skipped entirely — no polling, no
-listing, no API access. The dashboard shows a collapsed "N disabled services"
-strip at the bottom so they stay findable.
+`enabled: false` removes a service from polling and API access while keeping its definition discoverable in the dashboard's disabled-services section. `hidden: true` keeps it managed but omits it from the normal listing.
 
-After editing anything, press **Reload config** in the UI (or
-`curl -X POST http://127.0.0.1:7878/api/reload`). No restart, no page reload.
+Reload edited configuration from the UI or with:
 
-### Argv, not command lines
+```bash
+curl -X POST http://127.0.0.1:7878/api/reload
+```
 
-Every command is an **array of arguments**. There is no shell, so nothing is
-split, globbed or expanded:
+### Commands are argv arrays
+
+Configured commands are argument arrays, not command lines:
 
 ```yaml
-run: [nginx, -c, /home/me/proxy/nginx.conf, -s, reload]   # correct
+run: [nginx, -c, /home/me/proxy/nginx.conf, -s, reload]   # valid
 run: 'nginx -c /home/me/proxy/nginx.conf -s reload'       # rejected
 ```
 
-Paths are used exactly as written, including `~` — write absolute paths.
+Switchyard does no shell splitting, expansion or globbing. Paths are used literally; use absolute paths instead of `~`.
 
 ## Providers
 
 ### `command`
 
-Any service driven by predefined commands: scripts, custom daemons, dev servers.
+For scripts, custom daemons and anything else controlled by predefined commands.
 
 ```yaml
 provider:
-  pidFile: /run/user/1000/my-worker.pid   # optional: liveness, PID, uptime
+  pidFile: /run/user/1000/my-worker.pid
   status:
     run: [/opt/my-worker/ctl.sh, status]
-    interpret: exit          # exit: code 0 → successState; stdout: look up `map`
+    interpret: exit
     successState: running
     failureState: stopped
-    map: { active: running, inactive: stopped }   # for interpret: stdout
     fallbackState: unknown
-    useStdoutAsSummary: true # show the first stdout line on the card
+    useStdoutAsSummary: true
   logs:
     run: [tail, /var/log/my-worker.log]
-    tailArg: -n              # appended as `-n <count>`
+    tailArg: -n
     source: my-worker.log
   actions:
-    - id: start              # id, label and argv are all yours
+    - id: start
       label: Start
-      kind: primary          # primary | secondary | danger | utility
+      kind: primary
       icon: play
       run: [/opt/my-worker/ctl.sh, start]
       enabledIn: [stopped, failed, unknown]
-      confirm: false
-      slow: false
-      successMessage: worker started
-      timeoutMs: 30000
 ```
 
-When both `pidFile` and `status` are set, the pid file decides running/stopped and
-the probe grades the health of a live process — that is how "running, but the
-config is broken" becomes expressible (`failureState: degraded`).
+With both `pidFile` and `status`, the pid file determines whether the process exists while the status probe can distinguish a healthy process from a degraded one.
 
 ### `systemd`
 
 ```yaml
 provider:
-  unit: chrony.service       # `.service` is appended if you omit a suffix
-  scope: system              # system | user
-  useSudo: true              # default: true for system, false for user
+  unit: chrony.service
+  scope: system
+  useSudo: true
   sudoPath: sudo
-  actions: [start, stop, restart, reload]   # also: enable, disable
+  actions: [start, stop, restart, reload]
   confirm: [stop, restart]
 ```
 
-Status comes from `systemctl show` (no privileges) and includes sub-state, main
-PID, boot enablement, restart count, tasks and the unit file path (memory and CPU
-come from the resource sampler instead — see **Resource monitoring**). Logs
-come from `journalctl`. Mutating verbs are wrapped in `sudo -n` so a missing rule
-fails immediately instead of hanging — see **Privileges** below.
+Status comes from `systemctl show`, logs from `journalctl`. System-scope mutations use `sudo -n`; user units normally need no extra privileges.
 
 ### `compose`
 
 ```yaml
 provider:
-  file: /srv/stack/docker-compose.yml   # or files: [base.yml, override.yml]
+  file: /srv/stack/docker-compose.yml
   projectDir: /srv/stack
   projectName: stack
   actions: [up, down, restart, pull, stop, start, recreate, build, destroy]
-  slowTimeoutMs: 600000                 # up/down/pull/build budget
+  slowTimeoutMs: 600000
   requireHealthchecks: false
 ```
 
-Reports per container: state, health, image, exit code, published ports and exact
-start time (one batched `docker inspect`), and aggregates them into
-running / degraded / failed / stopped rather than a single boolean. `destroy` is
-`down -v` and deletes named volumes — opt in per service.
+Compose status is aggregated from the project's containers while retaining per-container state, health, image, exit code and ports. `destroy` maps to `down -v` and must be explicitly enabled.
 
 ### `docker`
-
-For containers that are not part of a Compose project.
 
 ```yaml
 provider:
   container: my-container
-  image: registry.example/my-container:latest   # required for the pull action
+  image: registry.example/my-container:latest
   actions: [start, stop, restart, pause, unpause, pull]
   confirm: [stop, restart]
   stopTimeoutSec: 15
-  acceptedExitCodes: [2]                 # exit codes that still count as a clean stop
+  acceptedExitCodes: [2]
 ```
 
-Status, health, restart policy, restart count and published ports come from a
-single `docker inspect`.
-
-Some images don't trap `SIGTERM` cleanly and exit non-zero on a normal
-`docker stop` (Portainer exits `2`, for example). Without `acceptedExitCodes`
-that reads as `failed` forever, even though the stop was intentional and
-succeeded. List the exit code(s) that image is known to use on a clean stop
-and Switchyard reports `stopped` instead, with no exit-code warning.
+`acceptedExitCodes` handles images that intentionally exit non-zero after a normal stop; listed codes are treated as a clean stopped state.
 
 ## Resource monitoring
 
-Some locally managed services are perfectly healthy and still ruin the machine —
-an antivirus daemon rescanning everything, a dev stack whose frontend build eats
-four cores. Switchyard samples what each service actually consumes and alerts when
-a service stays over a threshold you set.
-
-Sampling is on by default and needs no configuration: cards show CPU and memory,
-the drawer shows disk and network too. **Thresholds are what create alerts**, and
-they are always opt-in.
+Resource sampling is enabled by default. Thresholds are optional and are what turn measurements into alerts.
 
 ```yaml
-# switchyard.yaml — global defaults
 monitoring:
-  interval: 15s        # sampling interval, independent of statusIntervalMs
-  for: 30s             # default sustained duration before an alert activates
-  clearBelow: 0.9      # clear only below threshold × 0.9 (anti-flapping)
-  cooldown: 5m         # minimum gap between repeat notifications
-  history: 30m         # how long samples are kept in memory for trend queries
-  enabled: true        # false switches sampling off entirely
+  interval: 15s
+  for: 30s
+  clearBelow: 0.9
+  cooldown: 5m
+  history: 30m
+  enabled: true
 ```
 
+Per-service settings override the global defaults:
+
 ```yaml
-# services.d/antivirus.yaml — per service, merged over the global block
 monitoring:
   cpu:
-    warning: 150%      # 100% = one fully busy core
+    warning: 150%
     critical: 400%
-    for: 30s           # this metric must stay over its threshold this long
+    for: 30s
   memory:
     warning: 2GiB
     critical: 4GiB
@@ -321,340 +260,134 @@ monitoring:
     warning: 50MiB/s
 ```
 
-Metrics: `cpu`, `memory`, `diskRead`, `diskWrite`, `netRx`, `netTx`. Units are
-written out — `150%`, `2GiB`, `500MB`, `50MiB/s`, `30s`, `5m` — and a value
-without a unit is a config error rather than a guess. A metric block replaces the
-global one for that metric, so a service that sets only `warning` does not
-silently inherit a `critical` from another file. `monitoring: { enabled: false }`
-opts a single service out.
-
-### What each provider can measure
+Supported metrics are `cpu`, `memory`, `diskRead`, `diskWrite`, `netRx` and `netTx`. Values require explicit units. CPU uses 100% per fully busy core.
 
 | Provider | CPU | Memory | Disk | Network | Attribution |
 | --- | --- | --- | --- | --- | --- |
-| `systemd` | ✓ `CPUUsageNSec` | ✓ `MemoryCurrent` | only with `IOAccounting=yes` on the unit | — | the unit's cgroup: the service and every process it spawned |
-| `docker` | ✓ | ✓ | ✓ | ✓ | the container's cgroup |
-| `compose` | ✓ | ✓ | ✓ | ✓ | sum over the project's containers, plus per-container detail in the drawer |
-| `command` | ✓ | ✓ | ✓ where `/proc/<pid>/io` is readable | — | **the process in the pid file and its threads** — forked children are not counted |
+| `systemd` | yes | yes | with `IOAccounting=yes` | — | unit cgroup |
+| `docker` | yes | yes | yes | yes | container cgroup |
+| `compose` | yes | yes | yes | yes | project containers |
+| `command` | yes | yes | where `/proc/<pid>/io` is readable | — | pid-file process and its threads |
 
-A metric a provider cannot attribute to the service is *absent*, never zero, and
-every sample says what it covers. Switchyard does not modify unit files to enable
-`IOAccounting`, and per-unit network accounting does not exist in systemd at all.
-A service whose real work happens in forked children is better modelled as a
-systemd unit, where the cgroup covers the whole tree.
+Unavailable metrics are omitted rather than reported as zero. Switchyard does not change systemd accounting settings or resource limits.
 
-Nothing here is machine-wide: these are per-service numbers, and a busy host does
-not make an idle service look guilty.
+Alerts support sustained-duration thresholds, warning/critical escalation and hysteresis through `clearBelow`. Sampling pauses while an action is running so lifecycle work is not mistaken for normal load. Alerts are reported in the dashboard, API, history and MCP; Switchyard does not automatically throttle, stop or restart a service in response.
 
-### Alert lifecycle
+### Trends and activity history
 
-1. The value crosses a threshold — nothing happens yet.
-2. It stays over it for `for` → the alert **activates**, and (once) fires a
-   desktop notification.
-3. It keeps going while nothing changes → no further events, no repeat banners.
-4. It reaches `critical` for `for` → **escalates**, notifying again.
-5. It drops back under `critical × clearBelow` → **de-escalates** to warning
-   silently, staying active while the warning threshold is still breached.
-6. It drops under `threshold × clearBelow` → **clears**, with a toast.
-7. Samples stop arriving (service stopped, Docker gone) → the alert is marked
-   stale and cleared after three missed intervals.
+Resource samples are retained in memory for `monitoring.history` and exposed as statistics plus a bounded bucketed series. The per-service sample ring is capped at 2000 entries and is intentionally not persisted.
 
-Actions pause all of this: while a restart or a `compose pull` runs, the service
-is not sampled and its counters are dropped, so the restart itself never looks
-like a breach or a recovery. `for` and `cooldown` are elapsed wall-clock time, so
-changing `interval` never changes what `for: 30s` means.
+Service activity is persisted separately in `.state/history.jsonl`. It records:
 
-To see all of this happen without waiting for a real service to misbehave, copy
-`examples/services.d/50-load-generator.yaml` into `services.d/`: it produces a set
-fraction of a core, a fixed amount of memory and a steady write rate, with a
-second start action that goes over the critical thresholds so the escalation path
-is visible too.
-
-Alerts appear on the card, in the table, in the drawer with their thresholds and
-timings, at `GET /api/alerts` and `GET /api/resources`, and through the MCP
-`get_alerts` tool. Switchyard **detects and reports** — it never
-throttles, stops or restarts anything on its own, and never touches `CPUQuota`,
-`MemoryMax` or Docker limits.
-
-### Trends
-
-Samples are also kept in memory for `monitoring.history` (default `30m`), which is
-what makes "was that a spike or has it been like this for ten minutes?" answerable.
-`GET /api/services/:id/resources/history` returns per-metric statistics — min, max,
-average, p95, latest, sample count, the span actually covered — plus the share of
-samples above each threshold and a bucketed series whose length is fixed no matter
-how long a window is asked for.
-
-Nothing is written to disk: the service history below records events and is
-persisted, whereas samples are a live projection of the machine, so a restart
-simply starts a fresh window. Memory is bounded twice, by the retention window and
-by a hard per-service cap of 2000 samples, so a short `interval` with a long
-`history` cannot grow without limit. A service whose provider changes on a config
-reload has its history dropped — the old series measured something else, with a
-different attribution.
-
-### History
-
-Every service keeps a history of what happened to it, not only of what someone
-clicked. Six kinds of entry:
-
-| Kind | Written when |
+| Kind | Recorded event |
 | --- | --- |
-| `action` | an action finished, successfully or not — with its exit code and stderr excerpt |
-| `rejected` | an action was refused: unknown id, or one was already running |
-| `alert` | a resource alert activated, escalated, de-escalated or cleared |
-| `state` | the reported state changed, e.g. `running → failed` |
-| `probe` | the status probe or the resource sampler started failing, or recovered |
-| `config` | a reload added, removed or changed this service's definition |
+| `action` | completed action |
+| `rejected` | refused action |
+| `alert` | alert transition |
+| `state` | service state transition |
+| `probe` | status/resource probe failure or recovery |
+| `config` | service definition changed by reload |
 
-`state` and `probe` entries are written on **transitions only**. A service that has
-been failing for an hour is one entry, not one per status poll; the first probe
-after a restart establishes a baseline rather than reporting a change nobody made.
-Alerts need no such rule of their own — `for`, `cooldown` and the `clearBelow`
-hysteresis already decide what counts as news. A reload that changes nothing
-writes nothing.
+State and probe entries are transition-based, so a persistent failure produces one event rather than one event per poll. History is bounded by `settings.historyLimit` per service and `settings.historyRetention` by age. The log is replayed on startup and periodically compacted. Older action-only history remains readable.
 
-`settings.historyLimit` (default 100) bounds the entries kept per service, in
-memory and on disk. The log lives in `.state/history.jsonl` next to the config
-file and is replayed at startup, so history survives a restart. Writes are
-append-only; entries older than `settings.historyRetention` (default `30d`), and
-anything over the per-service limit, are purged when the file is compacted — at
-every startup, and again after every 500 appends so a server left running for
-weeks still shrinks. Compaction writes a temporary file and renames it over the
-original, so an interrupted purge leaves the old log intact. Logs written by
-earlier versions, which recorded actions and nothing else, are read as `action`
-entries with no migration step.
+## Dashboard
 
-## Using the dashboard
+The dashboard supports card and table views, full-text search, group/status/provider filters, sorting and per-service drawers. The drawer contains provider status, resource usage and attribution, alerts, children/containers, endpoints, logs, activity history, raw probe output and the effective service definition.
 
-* **Search** — `/` focuses the field; matches name, id, description, tags, type,
-  group, state, ports and URLs (all terms must match).
-* **Filter** — group pills, status chips (multi-select) and provider chips.
-  Filters and the chosen view persist across reloads.
-* **Sort** — group, name, status (worst first) or last action.
-* **View** — *cards* or *table*. Cards show everything about a service at once
-  and read well up to a few dozen services; the table puts one service per row
-  with aligned columns, which is what a long list needs to stay scannable.
-* **Card** — status badge, provider, live summary, uptime, CPU and memory,
-  highlighted metrics, ports, primary URL, resource alerts, first warning, inline
-  actions, last action, last check.
-* **Table row** — the same facts as a column each: service, state, detail,
-  group, uptime, load, endpoints, actions, last check. Secondary columns drop out
-  on narrow viewports rather than reflowing.
-* **Drawer** — click a service: full status metrics, live resource usage with its
-  attribution and active alerts, container list, endpoints, raw probe output, log
-  tail, the service history — actions with their output, alerts, state changes,
-  probe failures, config changes — and the service definition (including which
-  file it came from and the effective monitoring thresholds).
-* **Actions** — destructive ones ask for confirmation; while one runs, every
-  control for that service is locked and the card shows a transitional state.
-  Failures raise a sticky toast with the exact stdout/stderr.
-* **Esc** closes overlays. The header shows whether the live event stream is
-  connected.
-
-Status is expressed by colour **and** shape: pulsing dot (running), hollow ring
-(stopped), sweeping arc (starting/stopping), triangle (degraded), cross (failed),
-dashed ring (unknown).
+Actions are disabled while another action for the same service is running. Actions marked for confirmation require an explicit confirmation before execution. Status uses both colour and shape so state is not conveyed by colour alone.
 
 ## API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | liveness, version, service count |
-| `GET` | `/api/meta` | groups, providers, config path, warnings, disabled services, host facts, metric catalogue |
-| `GET` | `/api/services` | all summaries, including the latest resource sample and active alerts |
-| `GET` | `/api/alerts` | active resource alerts, most severe first |
-| `GET` | `/api/resources` | per-service measurements with units, thresholds and threshold state (`?service=`, `?sort=cpu`, `?limit=`) |
-| `GET` | `/api/services/:id/resources/history` | trend: statistics and a bucketed series (`?window=15m`, `?buckets=30`) |
-| `GET` | `/api/services/:id` | detail: children, history (actions, alerts, state changes, probe failures, config changes), raw probe, definition |
-| `POST` | `/api/services/:id/actions/:action` | run an action |
-| `POST` | `/api/services/:id/refresh` | re-probe now |
+| `GET` | `/api/meta` | groups, providers, config and host metadata |
+| `GET` | `/api/services` | service summaries |
+| `GET` | `/api/services/:id` | service detail and activity history |
+| `GET` | `/api/alerts` | active resource alerts |
+| `GET` | `/api/resources` | current resource measurements |
+| `GET` | `/api/services/:id/resources/history` | resource statistics and trend series |
 | `GET` | `/api/services/:id/logs?tail=200` | log tail |
-| `POST` | `/api/reload` | re-read config from disk |
-| `GET` | `/api/events` | SSE: `snapshot`, `service:update`, `service:checked`, `action:start`, `action:end`, `resource:alert`, `config:reload` |
+| `POST` | `/api/services/:id/actions/:action` | run an action |
+| `POST` | `/api/services/:id/refresh` | re-probe a service |
+| `POST` | `/api/reload` | re-read configuration |
+| `GET` | `/api/events` | SSE event stream |
 
-Errors are `{ "error": { "code", "message", "details" } }` with `404` unknown
-service/action, `409` an action is already running, `422` capability not
-supported, `400` malformed id. A command that fails is still `200` with
-`ok: false` and its output.
+Command failures are returned as normal action results with `ok: false`; malformed requests, unknown ids, conflicts and unsupported capabilities use 4xx responses.
 
 ## MCP interface
 
-Switchyard ships an MCP server so an agent — Claude Code, or anything else that
-speaks MCP — can read the dashboard and drive it without shell access.
+`packages/mcp` exposes Switchyard to MCP clients without duplicating the service manager or provider logic. It is a client of the same loopback HTTP API used by the dashboard.
 
-```
-Claude Code ──stdio or HTTP──▶ switchyard-mcp ──HTTP on 127.0.0.1──▶ Switchyard ──▶ providers
-```
+Two transports are available:
 
-`packages/mcp` is a thin client of the HTTP API above. It holds no service
-catalogue, no thresholds, no monitor loop and no second `ServiceManager`: the
-running server stays the single source of truth.
-
-A committed [`.mcp.json`](.mcp.json) wires it up for Claude Code, so a checkout
-needs no MCP configuration written by hand:
-
-```bash
-npm install && npm run build   # builds the UI, the server and the MCP server
-npm start                      # Switchyard itself, on 127.0.0.1:7878
-```
-
-Then open Claude Code in the checkout and approve the project MCP server when
-asked. `SWITCHYARD_URL` overrides the endpoint (default `http://127.0.0.1:7878`);
-`switchyard-mcp --url http://host:port` does the same on the command line.
-
-### Two transports, two scopes
-
-The same tools are reachable two ways, and which one you want depends on whether
-you are working *in this checkout* or *anywhere else*:
-
-| | **project-local → stdio** | **global → HTTP** |
+| | Project-local | Global |
 | --- | --- | --- |
-| Wired up by | the committed [`.mcp.json`](.mcp.json) | `npm run mcp:install` (opt-in) |
-| Scope | this repository only | every project you open |
-| Client entry | `node ${CLAUDE_PROJECT_DIR}/packages/mcp/dist/index.js` | `http://127.0.0.1:7879/mcp` |
-| Lifetime | one client connection; Claude Code spawns it | long-running daemon |
-| Listener | none | `127.0.0.1:7879`, loopback-only, no auth |
-| Managed by Switchyard | no — nothing to start or stop | yes, on the dashboard |
+| Transport | stdio | HTTP |
+| Setup | committed `.mcp.json` | `npm run mcp:install` |
+| Scope | this repository | user scope |
+| Listener | none | `127.0.0.1:7879` |
+| Managed by Switchyard | no | yes |
 
-**Project-local (stdio)** needs nothing: open Claude Code in the checkout, approve
-the project server, done. No port, no daemon, nothing to clean up.
-
-**Global (HTTP)** exists because stdio cannot be either of those things. A
-user-scope client entry has to name something that resolves identically from every
-project, and `${CLAUDE_PROJECT_DIR}` resolves to whichever project is open — so a
-global stdio entry needs an absolute path or a linked bin. A URL needs neither. And
-a process that lives for one connection has no pid, so Switchyard cannot manage it.
+The project-local stdio setup works directly from the checkout. The global HTTP mode is useful when Switchyard should be available to MCP clients from other projects:
 
 ```bash
-npm run mcp:install                                # register at user scope, HTTP
-scripts/switchyard-mcp-install.sh http --dry-run   # print the commands first
-npm run mcp:install stdio                          # or: npm link + the bin
+npm run mcp:install
+npm run mcp:http
 ```
 
-That runs `claude mcp add --scope user`, which writes a machine-specific URL into
-your `~/.claude.json` — which is why it is a script you run rather than a config
-file this repository commits. **Nothing in `npm install`, `npm run build` or
-`npm start` touches your client configuration**; registration belongs to the MCP
-client environment, not to Switchyard's runtime.
+The HTTP MCP listener is hard-restricted to loopback and has no remote-bind override. User-scope client registration is explicit: install, build and normal Switchyard startup do not modify MCP client configuration.
 
-```bash
-# what the script does, if you would rather type it
-claude mcp add --scope user --transport http switchyard http://127.0.0.1:7879/mcp
-```
+Available tools cover server metadata, service listing/detail, resource usage/history, alerts, logs, actions, refresh and config reload preview/apply. `confirm:` requirements are enforced by the MCP handler as well as represented in tool metadata.
 
-The daemon itself is a normal Switchyard service, shipped **enabled** in
-[`services.d/01-switchyard-mcp.yaml`](services.d/01-switchyard-mcp.yaml): it is on
-the dashboard from the first start with status, start/stop/restart, logs and its own
-CPU and memory thresholds. Like every other service, Switchyard does not start it
-for you.
-
-```bash
-npm run mcp:http                        # or press Start on the card
-curl -s http://127.0.0.1:7879/health
-scripts/switchyard-mcp-manage.sh status
-```
-
-Shipping it enabled is only defensible because the listener **cannot** be exposed:
-the bind address is checked against loopback in one place in `config.ts`, and there
-is deliberately no flag, environment variable or config key to relax it — no
-`allowRemoteBind` equivalent. An MCP endpoint runs actions, so a reachable one would
-be a remote control panel for every service on the machine with no credential in the
-path. See [`docs/PRIVILEGES.md`](docs/PRIVILEGES.md).
-
-| Tool | Purpose |
-| --- | --- |
-| `switchyard_server_info` | version, uptime, config path, providers, groups, warnings, monitoring settings, host CPU/RAM |
-| `list_services` | compact roster: state, provider, group, alert count, runnable action ids |
-| `get_service` | one service in full: status, children, endpoints, actions, recent activity, definition source |
-| `get_resource_usage` | CPU/memory/disk/network per service with units, sample age, thresholds, threshold state |
-| `get_resource_history` | min/max/avg/p95/latest, share of samples over each threshold, bucketed series |
-| `get_alerts` | active alerts with value, threshold, breach start and duration |
-| `get_logs` | log tail, with the same `tail` and container filters the API has |
-| `run_action` | run a declared action; those marked `confirm:` need `confirm: true` |
-| `refresh_service` | re-probe one service now |
-| `preview_config_reload` / `apply_config_reload` | diff a config change, then apply it |
-
-The safety model is the API's, unchanged: a caller names a service id and an
-action id, both looked up in tables built from the configuration. There is no
-parameter anywhere in the interface that carries a command, an argument, a path or
-a provider setting, and `confirm:` is enforced in the tool handler rather than left
-to a client honouring an annotation. In HTTP mode the endpoint refuses to bind
-anywhere but loopback, with no `allowRemoteBind`-style escape hatch — see
-[`docs/PRIVILEGES.md`](docs/PRIVILEGES.md).
-
-Questions it answers in one call: *which services are using the most CPU*, *how
-much memory is antivirus using*, *has it been under sustained load or was that a
-spike*, *is anything over its configured limits*, *why is this service alerting*.
-
-Deliberately absent: live event streaming. The dashboard's SSE feed has no useful
-MCP equivalent — an agent turn is driven by tool calls, not by server push — so
-current state, alerts, bounded history and an explicit `refresh_service` are what
-this exposes.
+See [docs/PRIVILEGES.md](docs/PRIVILEGES.md) for the trust model and MCP implications.
 
 ## Privileges
 
-Short version: **do not run Switchyard as root.**
+Do not run Switchyard as root. Run it as your normal user and grant only the operations individual services require.
 
-| Provider | Needs |
+| Provider | Typical requirement |
 | --- | --- |
-| `command` | nothing beyond your own user |
-| `systemd`, status/logs | nothing (`adm`/`systemd-journal` for the system journal) |
-| `systemd`, user scope | nothing |
-| `systemd`, system scope verbs | a narrow `NOPASSWD` sudoers rule per unit and verb |
-| `compose`, `docker` | rootless Docker, or `docker` group membership (root-equivalent) |
+| `command` | current user permissions |
+| `systemd` user scope | none |
+| `systemd` system scope mutations | narrow `NOPASSWD` sudo rule per unit and verb |
+| `docker` / `compose` | rootless Docker or Docker daemon access |
 
-Start from [`contrib/sudoers.d/switchyard.example`](contrib/sudoers.d/switchyard.example)
-and read [`docs/PRIVILEGES.md`](docs/PRIVILEGES.md) for the trust model, the
-hardening checklist and why the `docker` group deserves a moment's thought.
-
-The config files are trusted input — they contain commands that get executed.
-Keep them owned by the Switchyard user and not group-writable.
+A sudoers example is included at `contrib/sudoers.d/switchyard.example`. The full trust model and hardening guidance are in [docs/PRIVILEGES.md](docs/PRIVILEGES.md).
 
 ## Architecture
 
-```
-packages/server   Fastify API, provider adapters, one guarded spawn()
+```text
+packages/server   Fastify API, service manager, monitoring and providers
 packages/web      React + Vite + Tailwind dashboard
-packages/mcp      MCP server over stdio, a thin client of the HTTP API
-services.d        one file per service — git-ignored except the shipped
-                  00-switchyard.yaml, so a fresh checkout is never empty
-examples          runnable nginx instance and worker script
-docs              ARCHITECTURE.md, PRIVILEGES.md
+packages/mcp      MCP client/server over stdio or loopback HTTP
+services.d        local service definitions
+examples          provider and runnable service examples
+docs              architecture and privilege documentation
 ```
 
-The full picture, module map and the reasoning behind the technology choices are
-in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for component boundaries, request flows and implementation details.
 
 ## Adding a provider
 
-1. Implement the `Provider` interface in
-   `packages/server/src/providers/<name>.ts` — `type`, zod `configSchema`,
-   `actions()`, `status()`, `runAction()`, `supportsLogs()`, optional `logs()`.
+1. Implement the `Provider` interface in `packages/server/src/providers/<name>.ts`.
 2. Register it in `providers/index.ts`.
 3. Run subprocesses only through `context.exec` / `context.execRaw`.
-4. Note the privileges it needs in `docs/PRIVILEGES.md`.
+4. Implement `sample()` if the provider can attribute resource usage.
+5. Document any required privileges in `docs/PRIVILEGES.md`.
 
-No frontend work is needed: the dashboard renders whatever metrics, children,
-ports and warnings a provider returns, and `/api/meta` lists it automatically.
+The dashboard is provider-agnostic: new providers can expose metrics, children, ports and warnings without provider-specific frontend code.
 
-## Examples included
+## Examples
 
-* `examples/services.d/` — one file per provider, annotated, covering every
-  configuration option. Copy what you need into `services.d/`.
-* `examples/nginx/` — a complete unprivileged nginx instance (own prefix, pid
-  file, logs, port 8480).
-* `examples/scripts/sample-worker.sh` — a pid-file-managed worker driven by a
-  hand-written management script.
-
-The last two are wired up by `10-nginx-local.yaml` and `11-worker-script.yaml` and
-run immediately after copying, with no privileges and no path editing.
+- `examples/services.d/` — annotated definitions for the built-in providers.
+- `examples/nginx/` — an unprivileged nginx instance with its own prefix, pid file and logs.
+- `examples/scripts/sample-worker.sh` — a pid-file-managed worker.
+- `examples/services.d/50-load-generator.yaml` — controlled CPU, memory and disk load for testing monitoring and alerts.
 
 ## Scope
 
-A personal tool for one workstation. No Kubernetes, no queues, no RBAC, no plugin
-marketplace, no database. A feature earns a place here only if it works without
-any of those.
+Switchyard is a personal control panel for one Linux workstation. It deliberately avoids becoming a general orchestrator: no Kubernetes, cluster management, RBAC, database or plugin marketplace.
 
 ## License
 
