@@ -39,6 +39,13 @@ export interface ResourceAlert {
   stale?: boolean;
 }
 
+/** A threshold currently exceeded, with the moment the crossing started. */
+export interface MetricBreach {
+  severity: AlertSeverity;
+  /** Epoch milliseconds the crossing began; compare against `threshold.forMs`. */
+  since: number;
+}
+
 export type AlertEventKind = 'activated' | 'escalated' | 'deescalated' | 'cleared';
 
 export interface AlertEvent {
@@ -308,6 +315,27 @@ export class AlertTracker {
     const notify = state.notifiedActive;
     state.notifiedActive = false;
     return { kind: 'cleared', alert: cleared, notify, reason };
+  }
+
+  /**
+   * Threshold crossings that have started but not yet lasted `for`, per metric.
+   *
+   * Read-only view of state the machine already keeps: without it, a service
+   * twelve seconds into a thirty-second breach is indistinguishable from an idle
+   * one, because no alert exists yet. Reported for the highest severity whose
+   * threshold is currently exceeded.
+   */
+  pendingFor(serviceId: string): Partial<Record<ResourceMetric, MetricBreach>> {
+    const pending: Partial<Record<ResourceMetric, MetricBreach>> = {};
+    for (const metric of RESOURCE_METRICS) {
+      const state = this.states.get(`${serviceId}:${metric}`);
+      if (!state) continue;
+      const critical = state.pending.critical;
+      const warning = state.pending.warning;
+      if (critical !== undefined) pending[metric] = { severity: 'critical', since: critical };
+      else if (warning !== undefined) pending[metric] = { severity: 'warning', since: warning };
+    }
+    return pending;
   }
 
   /** Active alerts for one service, in severity order. */

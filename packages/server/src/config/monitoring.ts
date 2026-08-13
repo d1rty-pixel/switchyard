@@ -13,6 +13,7 @@ import { bytesSchema, durationSchema, percentSchema, rateSchema, ratioSchema } f
  *   for: 30s               # default sustained-breach duration
  *   clearBelow: 0.9        # hysteresis factor for clearing
  *   cooldown: 5m           # minimum gap between repeat notifications
+ *   history: 30m           # how long samples are kept for trend queries
  *
  * # services.d/antivirus.yaml
  * monitoring:
@@ -86,6 +87,11 @@ export const globalMonitoringSchema = z
     ...commonSchema,
     /** How often samples are collected. Independent of the status poll. */
     interval: durationSchema.optional(),
+    /**
+     * How far back resource samples are kept in memory, for trend queries.
+     * Global only: retention is a storage bound, not a per-service policy.
+     */
+    history: durationSchema.optional(),
     ...metricThresholds,
   })
   .strict()
@@ -106,11 +112,20 @@ export const MONITORING_DEFAULTS = {
   forMs: 30_000,
   clearBelow: 0.9,
   cooldownMs: 300_000,
+  historyMs: 1_800_000,
 } as const;
 
 /** Sampling interval bounds. Anything faster than 2 s just spawns processes. */
 export const MIN_INTERVAL_MS = 2_000;
 export const MAX_INTERVAL_MS = 3_600_000;
+
+/**
+ * Retention bounds for the in-memory sample history. The upper bound is a day
+ * because retention is only ever a *time* request here — the per-service sample
+ * cap in `core/resource-history.ts` is what actually bounds the memory.
+ */
+export const MIN_HISTORY_MS = 60_000;
+export const MAX_HISTORY_MS = 86_400_000;
 
 export interface ResolvedThreshold {
   warning?: number;
@@ -134,6 +149,8 @@ export interface ResolvedGlobalMonitoring {
   forMs: number;
   clearBelow: number;
   cooldownMs: number;
+  /** Retention window for the in-memory resource sample history. */
+  historyMs: number;
   thresholds: Partial<Record<ResourceMetric, ResolvedThreshold>>;
 }
 
@@ -145,6 +162,7 @@ export function resolveGlobalMonitoring(input: GlobalMonitoringInput): ResolvedG
     forMs,
     clearBelow: input?.clearBelow ?? MONITORING_DEFAULTS.clearBelow,
     cooldownMs: input?.cooldown ?? MONITORING_DEFAULTS.cooldownMs,
+    historyMs: clamp(input?.history ?? MONITORING_DEFAULTS.historyMs, MIN_HISTORY_MS, MAX_HISTORY_MS),
     thresholds: {},
   };
   for (const metric of RESOURCE_METRICS) {

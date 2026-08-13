@@ -4,7 +4,20 @@ import { appendHistory, loadHistory } from './history-store.js';
 import { logger, type Logger } from './logger.js';
 import { alertDigest, type ResourceAlert } from './alerts.js';
 import { ResourceMonitor, type MonitorHost, type MonitorResult, type MonitorTarget } from './monitor.js';
-import { resourceDigest, type ResourceSample } from './resources.js';
+import {
+  bucketSamples,
+  metricStats,
+  ResourceHistory,
+  type HistoryBucket,
+  type MetricStats,
+} from './resource-history.js';
+import {
+  buildResourceView,
+  sortByMetric,
+  sortBySeverity,
+  type ServiceResourceView,
+} from './resource-view.js';
+import { resourceDigest, type ResourceMetric, type ResourceSample } from './resources.js';
 import { childRollup, redact, type ServiceDetail, type ServiceSummary } from './views.js';
 import type { EventBus } from './events.js';
 import type { LoadedConfig } from '../config/load.js';
@@ -65,6 +78,7 @@ export class ServiceManager implements MonitorHost {
   private stopped = false;
   private readonly log: Logger;
   private readonly monitor: ResourceMonitor;
+  private readonly history: ResourceHistory;
 
   constructor(
     config: LoadedConfig,
@@ -74,6 +88,7 @@ export class ServiceManager implements MonitorHost {
   ) {
     this.config = config;
     this.log = logger.child({ module: 'manager' });
+    this.history = new ResourceHistory(config.monitoring.historyMs);
     this.applyConfig(config);
     this.monitor = new ResourceMonitor(
       this,
@@ -109,6 +124,10 @@ export class ServiceManager implements MonitorHost {
         alerts: sameProvider ? existing.alerts : [],
         lastEmitted: null,
       });
+      // Retained history measures whatever the old provider measured, with its
+      // own attribution — keeping it across a provider swap would mix two
+      // different meanings of "CPU for this service" in one series.
+      if (existing && !sameProvider) this.history.forget(service.id);
     }
 
     this.records = next;
@@ -127,8 +146,11 @@ export class ServiceManager implements MonitorHost {
     this.applyConfig(config);
     // Alerts and counter state for services the reload removed have no owner
     // left; clearing them also emits the closing `resource:alert` events.
-    this.monitor.forget([...before].filter((id) => !this.records.has(id)));
+    const removed = [...before].filter((id) => !this.records.has(id));
+    this.monitor.forget(removed);
+    for (const id of removed) this.history.forget(id);
     this.monitor.reconfigure(config.monitoring.intervalMs);
+    this.history.reconfigure(config.monitoring.historyMs);
     this.log.info({ services: config.services.length, path: config.path }, 'configuration reloaded');
     this.bus.emit({ type: 'config:reload', services: config.services.length, at: new Date().toISOString() });
     await this.refreshAll();
@@ -349,7 +371,17 @@ export class ServiceManager implements MonitorHost {
     if (current) {
       if (result.sample !== undefined) current.resources = result.sample;
       current.alerts = result.alerts;
+      // Only real samples enter the history: `undefined` means "hold what is
+      // stored" (an action is running) and `null` means there was nothing to
+      // measure. Neither is a reading, and recording either would make an idle
+      // or restarting service look like a measured one.
+      if (result.sample) {
+        this.history.append(result.id, Date.parse(result.sample.at), result.sample);
+      }
     }
+    // No record, or one whose provider changed under an in-flight sample: the
+    // series that history belongs to no longer exists.
+    if (!current) this.history.forget(result.id);
 
     for (const event of result.events) {
       this.log[event.alert.severity === 'critical' ? 'warn' : 'info'](
@@ -381,6 +413,94 @@ export class ServiceManager implements MonitorHost {
 
   get monitorIntervalMs(): number {
     return this.monitor.sampleIntervalMs;
+  }
+
+  get historyRetentionMs(): number {
+    return this.history.retention;
+  }
+
+  /**
+   * Measurement, unit, threshold and threshold state per service, in one shot.
+   *
+   * Deliberately one call for all services: the questions this answers ("what is
+   * hottest right now", "is anything over its limits") are comparisons, and
+   * answering them per service would need the whole set anyway.
+   */
+  resourceViews(options: { sort?: ResourceMetric; now?: number } = {}): ServiceResourceView[] {
+    const now = options.now ?? Date.now();
+    const views = [...this.records.values()]
+      .filter((record) => !record.service.hidden)
+      .map((record) => this.toResourceView(record, now));
+    return options.sort ? sortByMetric(views, options.sort) : sortBySeverity(views);
+  }
+
+  resourceView(id: string, now = Date.now()): ServiceResourceView {
+    return this.toResourceView(this.require(id), now);
+  }
+
+  private toResourceView(record: ServiceRecord, now: number): ServiceResourceView {
+    const { service } = record;
+    return buildResourceView({
+      id: service.id,
+      name: service.name,
+      type: service.type,
+      providerLabel: record.provider.label,
+      group: service.group,
+      state: this.toSummary(record).state,
+      monitored: service.monitoring.enabled && record.provider.sample !== undefined,
+      busy: record.busy !== null,
+      monitoring: service.monitoring,
+      sample: record.resources,
+      alerts: record.alerts,
+      pending: this.monitor.pendingFor(service.id),
+      historySamples: this.history.size(service.id),
+      now,
+    });
+  }
+
+  /**
+   * Trend data for one service: per-metric statistics plus a bucketed series.
+   *
+   * The statistics are computed here rather than by the caller because deciding
+   * what "above the warning threshold" means requires the resolved thresholds,
+   * which live in this process.
+   */
+  resourceHistory(
+    id: string,
+    options: { windowMs: number; buckets: number; now?: number },
+  ): {
+    id: string;
+    windowMs: number;
+    from: string;
+    to: string;
+    /** Retention actually configured — a window longer than this cannot be met. */
+    retentionMs: number;
+    samples: number;
+    /** Span the retained samples really cover, which may be shorter. */
+    spanMs: number;
+    intervalMs: number;
+    stats: MetricStats[];
+    buckets: HistoryBucket[];
+  } {
+    const record = this.require(id);
+    const now = options.now ?? Date.now();
+    const from = now - options.windowMs;
+    const samples = this.history.samples(id, options.windowMs, now);
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+
+    return {
+      id,
+      windowMs: options.windowMs,
+      from: new Date(from).toISOString(),
+      to: new Date(now).toISOString(),
+      retentionMs: this.history.retention,
+      samples: samples.length,
+      spanMs: first && last ? last.at - first.at : 0,
+      intervalMs: this.monitor.sampleIntervalMs,
+      stats: metricStats(samples, record.service.monitoring.thresholds),
+      buckets: bucketSamples(samples, options.buckets, from, now),
+    };
   }
 
   // ── actions ─────────────────────────────────────────────────────────────────

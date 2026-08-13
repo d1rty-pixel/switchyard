@@ -181,7 +181,23 @@ export interface ServiceDetail extends ServiceSummary {
   source: string;
   envKeys: string[];
   providerConfig: unknown;
-  monitoringConfig: unknown;
+  monitoringConfig: ResolvedMonitoring;
+}
+
+/** Effective monitoring configuration for one service, global defaults merged. */
+export interface ResolvedThreshold {
+  warning?: number;
+  critical?: number;
+  /** Sustained duration before an alert activates, in milliseconds. */
+  forMs: number;
+  unit: ResourceUnit;
+}
+
+export interface ResolvedMonitoring {
+  enabled: boolean;
+  clearBelow: number;
+  cooldownMs: number;
+  thresholds: Partial<Record<ResourceMetric, ResolvedThreshold>>;
 }
 
 export interface DisabledService {

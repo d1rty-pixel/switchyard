@@ -471,3 +471,55 @@ describe('multiple metrics and services', () => {
     assert.equal(tracker.active().length, 2);
   });
 });
+
+describe('pending breaches', () => {
+  it('reports a crossing that has not yet lasted for the configured duration', () => {
+    const tracker = new AlertTracker();
+    const monitoring = config();
+    run(tracker, monitoring, cpuSeries(0, 10 * SECOND, 5 * SECOND, 150));
+
+    const pending = tracker.pendingFor('antivirus');
+    assert.equal(pending.cpu?.severity, 'warning');
+    assert.equal(pending.cpu?.since, 0);
+    // No alert yet: `for` is 30 s.
+    assert.equal(tracker.activeFor('antivirus').length, 0);
+  });
+
+  it('reports the highest severity currently exceeded', () => {
+    const tracker = new AlertTracker();
+    run(tracker, config(), [{ at: 0, values: { cpuPercent: 500 } }]);
+    assert.equal(tracker.pendingFor('antivirus').cpu?.severity, 'critical');
+  });
+
+  it('forgets the crossing once the value drops back', () => {
+    const tracker = new AlertTracker();
+    const monitoring = config();
+    run(tracker, monitoring, [
+      { at: 0, values: { cpuPercent: 150 } },
+      { at: 5 * SECOND, values: { cpuPercent: 10 } },
+    ]);
+    assert.deepEqual(tracker.pendingFor('antivirus'), {});
+  });
+
+  it('keeps pointing at the start of the crossing, not the latest reading', () => {
+    const tracker = new AlertTracker();
+    run(tracker, config(), cpuSeries(0, 20 * SECOND, 5 * SECOND, 150));
+    assert.equal(tracker.pendingFor('antivirus').cpu?.since, 0);
+  });
+
+  it('reports nothing for a service it has never seen', () => {
+    assert.deepEqual(new AlertTracker().pendingFor('nope'), {});
+  });
+
+  it('holds its state while an action is running', () => {
+    const tracker = new AlertTracker();
+    const monitoring = config();
+    run(tracker, monitoring, [
+      { at: 0, values: { cpuPercent: 150 } },
+      { at: 5 * SECOND, values: null, paused: true },
+    ]);
+    // A restart is not a breach: the partial crossing is dropped rather than
+    // counted towards `for`.
+    assert.deepEqual(tracker.pendingFor('antivirus'), {});
+  });
+});

@@ -1,10 +1,14 @@
+import { cpus, hostname, totalmem } from 'node:os';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { badRequest } from '../core/errors.js';
 import { diffConfig } from '../config/diff.js';
 import { loadConfig } from '../config/load.js';
 import { idSchema, actionIdSchema } from '../config/schema.js';
+import { MONITORING_DEFAULTS } from '../config/monitoring.js';
+import { RESOURCE_METRICS, RESOURCE_METRIC_INFO } from '../core/resources.js';
 import { listProviders } from '../providers/index.js';
+import { durationSchema } from '../config/units.js';
 import type { ServiceManager } from '../core/manager.js';
 import type { EventBus } from '../core/events.js';
 
@@ -19,6 +23,38 @@ const logsQuerySchema = z.object({
     .optional()
     .transform((value) => value?.split(',').map((entry) => entry.trim()).filter(Boolean)),
 });
+
+const resourcesQuerySchema = z.object({
+  service: idSchema.optional(),
+  /** Order the list by one metric, highest first. */
+  sort: z.enum(RESOURCE_METRICS).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+/** Bounds the returned series regardless of how long a window was asked for. */
+const MAX_BUCKETS = 120;
+const DEFAULT_BUCKETS = 30;
+const DEFAULT_HISTORY_WINDOW_MS = 900_000;
+
+const historyQuerySchema = z.object({
+  /** Duration string, e.g. `15m`. Clamped to the configured retention. */
+  window: durationSchema.optional(),
+  buckets: z.coerce.number().int().min(1).max(MAX_BUCKETS).optional(),
+});
+
+/** Static description of the machine, so absolute numbers can be interpreted. */
+function hostInfo(): { hostname: string; cpuCount: number; totalMemoryBytes: number } {
+  return { hostname: hostname(), cpuCount: cpus().length, totalMemoryBytes: totalmem() };
+}
+
+/** The metric vocabulary: what each metric is called and what unit it is in. */
+function metricCatalog(): { metric: string; label: string; unit: string }[] {
+  return RESOURCE_METRICS.map((metric) => ({
+    metric,
+    label: RESOURCE_METRIC_INFO[metric].label,
+    unit: RESOURCE_METRIC_INFO[metric].unit,
+  }));
+}
 
 export interface ApiDeps {
   manager: ServiceManager;
@@ -69,6 +105,27 @@ export async function registerApi(app: FastifyInstance, deps: ApiDeps): Promise<
           intervalMs: manager.monitorIntervalMs,
         },
       },
+      /**
+       * Resource thresholds are absolute per-service values, so `150 %` means
+       * nothing without knowing how many cores the host has. Static, and cheap
+       * to read, so it travels with the rest of the metadata.
+       */
+      host: hostInfo(),
+      monitoring: {
+        enabled: config.monitoring.enabled,
+        intervalMs: manager.monitorIntervalMs,
+        historyMs: manager.historyRetentionMs,
+        /** Vocabulary for every resource metric: label and unit. */
+        metrics: metricCatalog(),
+        defaults: {
+          forMs: config.monitoring.forMs,
+          clearBelow: config.monitoring.clearBelow,
+          cooldownMs: config.monitoring.cooldownMs,
+          historyMs: MONITORING_DEFAULTS.historyMs,
+        },
+        /** Global thresholds every service inherits unless it overrides them. */
+        thresholds: config.monitoring.thresholds,
+      },
     };
   });
 
@@ -76,6 +133,48 @@ export async function registerApi(app: FastifyInstance, deps: ApiDeps): Promise<
 
   /** Active resource alerts across all services, most severe first. */
   app.get('/api/alerts', async () => ({ alerts: manager.activeAlerts() }));
+
+  /**
+   * Per-service resource measurements with their units, thresholds and threshold
+   * state. Separate from `/api/services` because that payload carries actions,
+   * ports, probe output and history — everything except what a "who is eating the
+   * machine?" question needs.
+   */
+  app.get('/api/resources', async (request) => {
+    const { service, sort, limit } = parse(resourcesQuerySchema, request.query ?? {});
+    const now = Date.now();
+
+    const views = service ? [manager.resourceView(service, now)] : manager.resourceViews({ sort, now });
+    const limited = limit !== undefined ? views.slice(0, limit) : views;
+
+    return {
+      at: new Date(now).toISOString(),
+      host: hostInfo(),
+      monitoring: {
+        enabled: manager.loadedConfig.monitoring.enabled,
+        intervalMs: manager.monitorIntervalMs,
+        historyMs: manager.historyRetentionMs,
+        metrics: metricCatalog(),
+      },
+      /** Number of services dropped by `limit`, so a truncated list says so. */
+      truncated: views.length - limited.length,
+      services: limited,
+    };
+  });
+
+  /**
+   * Bounded trend view for one service: per-metric statistics plus a fixed-size
+   * bucketed series. Answers "sustained or a spike?", which the latest sample
+   * cannot.
+   */
+  app.get('/api/services/:id/resources/history', async (request) => {
+    const { id } = parse(paramsSchema, request.params);
+    const { window, buckets } = parse(historyQuerySchema, request.query ?? {});
+    // A window longer than retention would silently promise data that was never
+    // kept; the response reports both so the caller can see the difference.
+    const windowMs = Math.min(window ?? DEFAULT_HISTORY_WINDOW_MS, manager.historyRetentionMs);
+    return manager.resourceHistory(id, { windowMs, buckets: buckets ?? DEFAULT_BUCKETS });
+  });
 
   app.get('/api/services/:id', async (request) => {
     const { id } = parse(paramsSchema, request.params);

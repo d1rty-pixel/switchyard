@@ -1,4 +1,4 @@
-import { AlertTracker, type AlertEvent, type ResourceAlert } from './alerts.js';
+import { AlertTracker, type AlertEvent, type MetricBreach, type ResourceAlert } from './alerts.js';
 import { logger, type Logger } from './logger.js';
 import { SampleBatch } from './sample-batch.js';
 import {
@@ -8,6 +8,7 @@ import {
   type ProviderSample,
   type ProviderSampleUnit,
   type ResourceChildSample,
+  type ResourceMetric,
   type ResourceSample,
   type ResourceValues,
 } from './resources.js';
@@ -105,6 +106,11 @@ export class ResourceMonitor {
 
   alertsFor(serviceId: string): ResourceAlert[] {
     return this.tracker.activeFor(serviceId);
+  }
+
+  /** Threshold crossings still inside their `for` window, per metric. */
+  pendingFor(serviceId: string): Partial<Record<ResourceMetric, MetricBreach>> {
+    return this.tracker.pendingFor(serviceId);
   }
 
   start(): void {
