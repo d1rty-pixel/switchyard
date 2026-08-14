@@ -30,6 +30,56 @@ function paint(theme: ResolvedTheme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark');
 }
 
+/** Half of the visible transition: fade out, swap, fade back. */
+const FADE_MS = 250;
+/** Held at full black after the swap, so nothing is still moving on the way back. */
+const SETTLE_MS = 60;
+
+let fading = false;
+
+/**
+ * Runs `swap` behind an opaque cover so the theme change is never seen
+ * half-applied. Falls back to swapping immediately when motion is unwanted, or
+ * when a fade is already in flight — a second cover would fight the first.
+ */
+function fadeThrough(swap: () => void): void {
+  if (fading || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    swap();
+    return;
+  }
+  fading = true;
+  const cover = document.createElement('div');
+  cover.className = 'theme-fade';
+  document.body.append(cover);
+
+  // Two frames: one to get the element into the layout at opacity 0, one for
+  // the browser to see the change to 1 as a transition rather than a jump.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      cover.dataset.on = 'true';
+      window.setTimeout(() => {
+        document.documentElement.classList.add('theme-swapping');
+        swap();
+        // The swap has to be fully painted before the cover comes off, or the
+        // fade in shows the tail of it. Two frames plus a beat gives React its
+        // re-render and the browser a paint with transitions still suppressed.
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() =>
+            window.setTimeout(() => {
+              document.documentElement.classList.remove('theme-swapping');
+              cover.dataset.on = 'false';
+              window.setTimeout(() => {
+                cover.remove();
+                fading = false;
+              }, FADE_MS);
+            }, SETTLE_MS),
+          ),
+        );
+      }, FADE_MS);
+    }),
+  );
+}
+
 /**
  * Three-state theme preference, persisted per browser.
  *
@@ -54,8 +104,10 @@ export function useTheme(): {
     const media = window.matchMedia(DARK_QUERY);
     const onChange = () => {
       const next = media.matches ? 'dark' : 'light';
-      paint(next);
-      setResolved(next);
+      fadeThrough(() => {
+        paint(next);
+        setResolved(next);
+      });
     };
     media.addEventListener('change', onChange);
     return () => media.removeEventListener('change', onChange);
@@ -68,9 +120,14 @@ export function useTheme(): {
     else localStorage.setItem(STORAGE_KEY, next);
 
     const theme = resolve(next);
-    paint(theme);
+    // The preference itself is applied at once so the menu's checkmark tracks
+    // the click; only the repaint waits for the cover.
     setPreferenceState(next);
-    setResolved(theme);
+    if (theme === (document.documentElement.classList.contains('dark') ? 'dark' : 'light')) return;
+    fadeThrough(() => {
+      paint(theme);
+      setResolved(theme);
+    });
   }, []);
 
   return { preference, resolved, setPreference };

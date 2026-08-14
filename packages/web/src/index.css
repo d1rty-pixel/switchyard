@@ -122,3 +122,41 @@
     @apply bg-background text-foreground;
   }
 }
+
+/**
+ * Cover used to hide the theme swap. Cross-fading every token individually
+ * shows the page mid-swap (backgrounds and text land at different times, so
+ * text goes briefly unreadable); fading through one opaque layer never does.
+ * `pointer-events: none` keeps clicks working through it.
+ */
+.theme-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  /* Kept in step with `FADE_MS` in lib/theme.ts. */
+  transition: opacity 250ms ease;
+}
+
+.theme-fade[data-on='true'] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-fade {
+    display: none;
+  }
+}
+
+/**
+ * Held for the moment the tokens are swapped behind the cover. Without it the
+ * `transition-colors` on cards, rows and chips keeps animating after the swap,
+ * so the fade back in reveals elements still on their way to the new colour.
+ * Cleared before the cover fades, which is why the cover's own transition is
+ * unaffected.
+ */
+.theme-swapping * {
+  transition: none !important;
+}
