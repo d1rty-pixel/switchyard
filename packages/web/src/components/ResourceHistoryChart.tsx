@@ -13,7 +13,15 @@ interface Point {
 }
 
 /** One metric's timeline: average line, max as a lighter ceiling, hover crosshair. */
-function MetricChart({ metric, buckets }: { metric: ResourceMetric; buckets: ResourceHistoryBucket[] }) {
+function MetricChart({
+  metric,
+  buckets,
+  memoryLimitBytes,
+}: {
+  metric: ResourceMetric;
+  buckets: ResourceHistoryBucket[];
+  memoryLimitBytes?: number;
+}) {
   const info = RESOURCE_METRIC_INFO[metric];
   const [hover, setHover] = useState<number | null>(null);
 
@@ -50,6 +58,9 @@ function MetricChart({ metric, buckets }: { metric: ResourceMetric; buckets: Res
         <span className="text-[12.5px] text-muted-foreground">{info.label}</span>
         <span className="tabular-nums text-[13px] font-medium text-foreground">
           {active ? formatResource(active.average, info.unit) : latest ? formatResource(latest.average, info.unit) : '—'}
+          {metric === 'memory' && memoryLimitBytes !== undefined && (
+            <span className="text-muted-foreground"> / {formatResource(memoryLimitBytes, 'bytes')}</span>
+          )}
         </span>
       </div>
       <svg
@@ -83,18 +94,26 @@ function MetricChart({ metric, buckets }: { metric: ResourceMetric; buckets: Res
           ? `${formatClock(active.bucket.at)} · avg ${formatResource(active.average, info.unit)} · peak ${formatResource(active.max, info.unit)}`
           : points.length > 1
             ? `${formatClock(points[0]?.bucket.at)} – ${formatClock(latest?.bucket.at)}`
-            : 'Not enough samples yet.'}
+            : 'Waiting for more data…'}
       </p>
     </div>
   );
 }
 
 /** Timeline graph for each metric the service currently reports. Replaces the flat snapshot view. */
-export function ResourceHistoryChart({ metrics, buckets }: { metrics: ResourceMetric[]; buckets: ResourceHistoryBucket[] }) {
+export function ResourceHistoryChart({
+  metrics,
+  buckets,
+  memoryLimitBytes,
+}: {
+  metrics: ResourceMetric[];
+  buckets: ResourceHistoryBucket[];
+  memoryLimitBytes?: number;
+}) {
   return (
     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
       {metrics.map((metric) => (
-        <MetricChart key={metric} metric={metric} buckets={buckets} />
+        <MetricChart key={metric} metric={metric} buckets={buckets} memoryLimitBytes={memoryLimitBytes} />
       ))}
     </div>
   );

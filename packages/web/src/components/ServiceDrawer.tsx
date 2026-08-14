@@ -429,8 +429,6 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
   const entries = sample ? resourceEntries(sample, service.alerts) : [];
   const history = useResourceHistory(service.id, '15m', entries.length > 0);
   const buckets = history.data?.buckets ?? [];
-  // Two buckets is the minimum a line can show; below that, the snapshot list is more honest.
-  const hasGraph = buckets.length > 1;
 
   return (
     <Section title="Resources" icon={Gauge}>
@@ -444,31 +442,14 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
 
       {entries.length > 0 ? (
         <>
-          {hasGraph ? (
-            <ResourceHistoryChart metrics={entries.map((entry) => entry.metric)} buckets={buckets} />
-          ) : (
-            <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {entries.map((entry) => (
-                <div
-                  key={entry.metric}
-                  className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5"
-                >
-                  <dt className="shrink-0 text-[12.5px] text-muted-foreground">{entry.label}</dt>
-                  <dd
-                    className={cn(
-                      'tabular-nums min-w-0 truncate text-right text-[13px] font-medium',
-                      toneStyle(alertTone(entry.alert?.severity)).text,
-                    )}
-                  >
-                    {formatResource(entry.value, entry.unit)}
-                    {entry.metric === 'memory' && sample?.memoryLimitBytes !== undefined && (
-                      <span className="text-muted-foreground"> / {formatResource(sample.memoryLimitBytes, 'bytes')}</span>
-                    )}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          {/* Always the chart, never the flat list — MetricChart already shows a
+              placeholder for < 2 buckets, so this doesn't flash-swap layouts once
+              the second sample lands (e.g. right after a restart clears history). */}
+          <ResourceHistoryChart
+            metrics={entries.map((entry) => entry.metric)}
+            buckets={buckets}
+            memoryLimitBytes={sample?.memoryLimitBytes}
+          />
           <p className="mt-1.5 text-[12px] text-muted-foreground">
             {sample?.attribution} · sampled {formatAgo(sample?.at)}
           </p>
