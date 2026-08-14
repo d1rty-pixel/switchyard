@@ -18,6 +18,7 @@ export const keys = {
   services: ['services'] as const,
   service: (id: string) => ['service', id] as const,
   logs: (id: string, tail: number, containers: string[]) => ['logs', id, tail, containers] as const,
+  resourceHistory: (id: string, window: string) => ['resourceHistory', id, window] as const,
 };
 
 export function useMeta() {
@@ -42,6 +43,18 @@ export function useServiceDetail(id: string | null) {
     queryFn: () => api.service(id as string),
     enabled: id !== null,
     staleTime: 1_000,
+  });
+}
+
+/** Bucketed resource history for the drawer's timeline graph. */
+export function useResourceHistory(id: string | null, window = '15m', enabled = true) {
+  return useQuery({
+    queryKey: keys.resourceHistory(id ?? '—', window),
+    queryFn: () => api.resourceHistory(id as string, window),
+    enabled: id !== null && enabled,
+    // Matches the sampling cadence closely enough that the graph visibly grows.
+    refetchInterval: 10_000,
+    staleTime: 5_000,
   });
 }
 

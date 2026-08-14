@@ -4,6 +4,7 @@ import type {
   LogsResponse,
   MetaResponse,
   ReloadPreview,
+  ResourceHistoryResponse,
   ServiceDetail,
   ServiceSummary,
 } from './types';
@@ -60,6 +61,14 @@ export const api = {
   meta: () => request<MetaResponse>('/api/meta'),
   services: () => request<{ services: ServiceSummary[] }>('/api/services').then((body) => body.services),
   service: (id: string) => request<ServiceDetail>(`/api/services/${encodeURIComponent(id)}`),
+  resourceHistory: (id: string, window?: string) => {
+    const params = new URLSearchParams();
+    if (window) params.set('window', window);
+    const query = params.toString();
+    return request<ResourceHistoryResponse>(
+      `/api/services/${encodeURIComponent(id)}/resources/history${query ? `?${query}` : ''}`,
+    );
+  },
   refresh: (id: string) =>
     request<{ service: ServiceSummary }>(`/api/services/${encodeURIComponent(id)}/refresh`, { method: 'POST' }),
   runAction: (id: string, action: string) =>

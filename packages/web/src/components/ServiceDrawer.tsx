@@ -16,18 +16,21 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetClose, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { hasGpuAcceleration } from '@/lib/gpu';
-import { useRefreshService, useServiceDetail } from '@/lib/hooks';
+import { useRefreshService, useResourceHistory, useServiceDetail } from '@/lib/hooks';
 import { formatAgo, formatClock, formatDuration, formatMetric, formatResource, formatUptime } from '@/lib/format';
 import { iconFor } from '@/lib/icons';
 import { alertTone, resourceEntries, RESOURCE_METRIC_INFO, RESOURCE_ORDER } from '@/lib/resources';
 import { stateStyle, toneStyle } from '@/lib/status';
 import { Callout } from './Callout';
+import { ResourceHistoryChart } from './ResourceHistoryChart';
 import { EndpointLink } from './ServiceChips';
 import { StatusBadge, StatusIndicator } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
@@ -129,14 +132,14 @@ export function ServiceDrawer({
                   ] as const
                 ).map(([id, label, Icon]) => {
                   const disabled = id === 'logs' && !service.supportsLogs;
-                  return (
-                    <TabsTrigger
-                      key={id}
-                      value={id}
-                      disabled={disabled}
-                      title={disabled ? 'This provider exposes no logs' : undefined}
-                      className="px-3 py-2.5 text-[13.5px] text-muted-foreground after:bg-primary hover:text-foreground data-active:text-primary dark:text-muted-foreground dark:hover:text-foreground dark:data-active:text-primary"
-                    >
+                  const triggerProps = {
+                    value: id,
+                    disabled,
+                    className:
+                      'px-3 py-2.5 text-[13.5px] text-muted-foreground after:bg-primary hover:text-foreground data-active:text-primary dark:text-muted-foreground dark:hover:text-foreground dark:data-active:text-primary',
+                  } as const;
+                  const content = (
+                    <>
                       <Icon className="size-3.5" />
                       {label}
                       {id === 'history' && service.history.length > 0 && (
@@ -144,7 +147,22 @@ export function ServiceDrawer({
                           {service.history.length}
                         </span>
                       )}
-                    </TabsTrigger>
+                    </>
+                  );
+                  if (!disabled) {
+                    return (
+                      <TabsTrigger key={id} {...triggerProps}>
+                        {content}
+                      </TabsTrigger>
+                    );
+                  }
+                  return (
+                    <Tooltip key={id}>
+                      <TooltipTrigger asChild>
+                        <TabsTrigger {...triggerProps}>{content}</TabsTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>This provider exposes no logs</TooltipContent>
+                    </Tooltip>
                   );
                 })}
               </TabsList>
@@ -247,16 +265,20 @@ function DrawerHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={onRefresh}
-            aria-label="Re-check status"
-            title="Re-check status now"
-            className="border-border bg-muted/60 text-muted-foreground hover:text-primary"
-          >
-            <RefreshCw className={cn(refreshing && 'animate-spin text-primary')} />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={onRefresh}
+                aria-label="Re-check status"
+                className="border-border bg-muted/60 text-muted-foreground hover:text-primary"
+              >
+                <RefreshCw className={cn(refreshing && 'animate-spin text-primary')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Re-check status now</TooltipContent>
+          </Tooltip>
           <SheetClose asChild>
             <Button
               variant="outline"
@@ -286,88 +308,100 @@ function DrawerHeader({
 function OverviewTab({ service }: { service: ServiceDetail }) {
   const problems = [...service.errors.map((text) => ({ text, severe: true })), ...service.warnings.map((text) => ({ text, severe: false }))];
 
+  // A compose stack's statusSummary is generated from the same running/total
+  // count the Containers section already headlines below — showing it twice
+  // says nothing a second time. Only compose populates childStatuses, so this
+  // stays correct if another provider ever grows children of its own.
+  const showStatusCallout = (service.statusSummary || service.statusDetail) && service.childStatuses.length === 0;
+
   return (
     <ScrollArea className="h-full">
     <div className="p-4">
-      {(service.statusSummary || service.statusDetail) && (
+      {showStatusCallout && (
         <section className="mb-4 rounded-xl border border-border bg-muted/40 p-3">
           <p className="text-[13.5px] text-foreground">{service.statusSummary ?? stateStyle(service.state).hint}</p>
           {service.statusDetail && <p className="font-mono mt-1.5 text-muted-foreground">{service.statusDetail}</p>}
         </section>
       )}
 
-      {/* Two independent columns on wide viewports: diagnostics on the left,
-          runtime inventory on the right. Below 1280px it collapses to one. */}
-      <div className="grid items-start gap-x-6 gap-y-5 xl:grid-cols-2">
       {problems.length > 0 && (
-        <Section title="Warnings" icon={AlertTriangle}>
-          <ul className="space-y-1.5">
-            {problems.map((problem, index) => (
-              <Callout key={index} as="li" tone={problem.severe ? 'bad' : 'warn'} icon={AlertTriangle}>
-                {problem.text}
-              </Callout>
-            ))}
-          </ul>
-        </Section>
+        <div className="mb-5">
+          <Section title="Warnings" icon={AlertTriangle}>
+            <ul className="space-y-1.5">
+              {problems.map((problem, index) => (
+                <Callout key={index} as="li" tone={problem.severe ? 'bad' : 'warn'} icon={AlertTriangle}>
+                  {problem.text}
+                </Callout>
+              ))}
+            </ul>
+          </Section>
+        </div>
       )}
 
-      {(service.alerts.length > 0 || service.resources) && <ResourcesSection service={service} />}
+      {/* Two explicit columns, not grid auto-flow: growing lists (containers,
+          status detail) on the left, fixed-size facts (resources, endpoints)
+          on the right, so one side doesn't end up empty next to a crowded other. */}
+      <div className="grid items-start gap-x-6 gap-y-5 xl:grid-cols-2">
+      <div className="space-y-5">
+        {service.childStatuses.length > 0 && (
+          <Section title={`Containers · ${service.children?.running ?? 0}/${service.children?.total ?? 0} up`} icon={Boxes}>
+            <ul className="space-y-1.5">
+              {service.childStatuses.map((child) => (
+                <ChildRow key={child.id} child={child} />
+              ))}
+            </ul>
+          </Section>
+        )}
 
-      {service.metrics.length > 0 && (
-        <Section title="Status detail" icon={Info}>
-          <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {service.metrics.map((metric) => (
-              <div
-                key={metric.label}
-                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5"
-              >
-                <dt className="shrink-0 text-[12.5px] text-muted-foreground">{metric.label}</dt>
-                <dd
-                  className={cn(
-                    'tabular-nums min-w-0 truncate text-right text-[13px] font-medium',
-                    metric.kind === 'mono' && 'font-mono',
-                    toneStyle(metric.tone).text,
-                  )}
-                  title={metric.value}
+        {service.metrics.length > 0 && (
+          <Section title="Status detail" icon={Info}>
+            <dl className="space-y-1.5">
+              {service.metrics.map((metric) => (
+                <div key={metric.label}>
+                  <dt className="mb-1 text-[12.5px] text-muted-foreground">{metric.label}</dt>
+                  <dd>
+                    <Input
+                      readOnly
+                      value={formatMetric(metric)}
+                      onFocus={(event) => event.target.select()}
+                      className={cn(
+                        'h-7 cursor-text text-[13px]',
+                        metric.kind === 'mono' && 'font-mono',
+                        toneStyle(metric.tone).text,
+                      )}
+                    />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Section>
+        )}
+      </div>
+
+      <div className="space-y-5">
+        {(service.alerts.length > 0 || service.resources) && <ResourcesSection service={service} />}
+
+        {(service.ports.length > 0 || service.urls.length > 0) && (
+          <Section title="Endpoints" icon={Radio}>
+            <div className="flex flex-wrap gap-1.5">
+              {service.urls.map((url) => (
+                <EndpointLink key={url.url} url={url} className="h-auto rounded-lg px-2.5 py-1.5 text-[13px]" />
+              ))}
+              {service.ports.map((port) => (
+                <span
+                  key={`${port.protocol}-${port.hostPort ?? port.port}`}
+                  className="tabular-nums inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-[13px] text-foreground"
                 >
-                  {formatMetric(metric)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </Section>
-      )}
-
-      {service.childStatuses.length > 0 && (
-        <Section title={`Containers · ${service.children?.running ?? 0}/${service.children?.total ?? 0} up`} icon={Boxes}>
-          <ul className="space-y-1.5">
-            {service.childStatuses.map((child) => (
-              <ChildRow key={child.id} child={child} />
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {(service.ports.length > 0 || service.urls.length > 0) && (
-        <Section title="Endpoints" icon={Radio}>
-          <div className="flex flex-wrap gap-1.5">
-            {service.urls.map((url) => (
-              <EndpointLink key={url.url} url={url} className="h-auto rounded-lg px-2.5 py-1.5 text-[13px]" />
-            ))}
-            {service.ports.map((port) => (
-              <span
-                key={`${port.protocol}-${port.hostPort ?? port.port}`}
-                className="tabular-nums inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-[13px] text-foreground"
-              >
-                <Radio className="size-3 text-muted-foreground" />
-                {port.hostPort ? `${port.hostPort} → ${port.port}` : port.port}
-                <span className="text-[11px] uppercase text-muted-foreground">{port.protocol}</span>
-                {port.label && <span className="text-muted-foreground">{port.label}</span>}
-              </span>
-            ))}
-          </div>
-        </Section>
-      )}
+                  <Radio className="size-3 text-muted-foreground" />
+                  {port.hostPort ? `${port.hostPort} → ${port.port}` : port.port}
+                  <span className="text-[11px] uppercase text-muted-foreground">{port.protocol}</span>
+                  {port.label && <span className="text-muted-foreground">{port.label}</span>}
+                </span>
+              ))}
+            </div>
+          </Section>
+        )}
+      </div>
 
       {service.lastProbe?.argv && (
         // Full width: argv lines and raw output are the widest content here.
@@ -393,6 +427,10 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
 function ResourcesSection({ service }: { service: ServiceDetail }) {
   const sample = service.resources;
   const entries = sample ? resourceEntries(sample, service.alerts) : [];
+  const history = useResourceHistory(service.id, '15m', entries.length > 0);
+  const buckets = history.data?.buckets ?? [];
+  // Two buckets is the minimum a line can show; below that, the snapshot list is more honest.
+  const hasGraph = buckets.length > 1;
 
   return (
     <Section title="Resources" icon={Gauge}>
@@ -406,27 +444,31 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
 
       {entries.length > 0 ? (
         <>
-          <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {entries.map((entry) => (
-              <div
-                key={entry.metric}
-                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5"
-              >
-                <dt className="shrink-0 text-[12.5px] text-muted-foreground">{entry.label}</dt>
-                <dd
-                  className={cn(
-                    'tabular-nums min-w-0 truncate text-right text-[13px] font-medium',
-                    toneStyle(alertTone(entry.alert?.severity)).text,
-                  )}
+          {hasGraph ? (
+            <ResourceHistoryChart metrics={entries.map((entry) => entry.metric)} buckets={buckets} />
+          ) : (
+            <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {entries.map((entry) => (
+                <div
+                  key={entry.metric}
+                  className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5"
                 >
-                  {formatResource(entry.value, entry.unit)}
-                  {entry.metric === 'memory' && sample?.memoryLimitBytes !== undefined && (
-                    <span className="text-muted-foreground"> / {formatResource(sample.memoryLimitBytes, 'bytes')}</span>
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
+                  <dt className="shrink-0 text-[12.5px] text-muted-foreground">{entry.label}</dt>
+                  <dd
+                    className={cn(
+                      'tabular-nums min-w-0 truncate text-right text-[13px] font-medium',
+                      toneStyle(alertTone(entry.alert?.severity)).text,
+                    )}
+                  >
+                    {formatResource(entry.value, entry.unit)}
+                    {entry.metric === 'memory' && sample?.memoryLimitBytes !== undefined && (
+                      <span className="text-muted-foreground"> / {formatResource(sample.memoryLimitBytes, 'bytes')}</span>
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
           <p className="mt-1.5 text-[12px] text-muted-foreground">
             {sample?.attribution} · sampled {formatAgo(sample?.at)}
           </p>

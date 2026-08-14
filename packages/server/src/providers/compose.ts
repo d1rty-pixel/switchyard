@@ -288,7 +288,7 @@ export const composeProvider: Provider<ComposeConfig> = {
         id: container.ID ?? name,
         name,
         state,
-        stateLabel: container.Status ?? container.State,
+        stateLabel: stripHealthSuffix(container.Status) ?? container.State,
         health,
         image: container.Image,
         ports: containerPorts,
@@ -651,6 +651,15 @@ function mapContainerState(container: ComposePs): ServiceState {
     default:
       return 'unknown';
   }
+}
+
+/**
+ * Docker's own Status text appends "(healthy)" / "(health: starting)" etc. — the
+ * same information `normaliseHealth` already extracts into its own badge, so
+ * showing it again here would just be the same fact twice.
+ */
+function stripHealthSuffix(status?: string): string | undefined {
+  return status?.replace(/\s*\((?:health: [^)]+|(?:un)?healthy)\)\s*$/i, '');
 }
 
 function normaliseHealth(health?: string): ChildStatus['health'] {

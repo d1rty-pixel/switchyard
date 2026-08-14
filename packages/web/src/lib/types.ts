@@ -162,6 +162,26 @@ export interface ResourceAlertEvent {
   reason: string;
 }
 
+/** One downsampled time slice of `/resources/history`. Metrics absent from every sample in the bucket stay absent. */
+export interface ResourceHistoryBucket {
+  at: string;
+  endAt: string;
+  samples: number;
+  values: Partial<Record<ResourceMetric, { average: number; max: number }>>;
+}
+
+export interface ResourceHistoryResponse {
+  id: string;
+  windowMs: number;
+  from: string;
+  to: string;
+  retentionMs: number;
+  samples: number;
+  spanMs: number;
+  intervalMs: number;
+  buckets: ResourceHistoryBucket[];
+}
+
 export interface ServiceSummary {
   id: string;
   name: string;
