@@ -107,20 +107,20 @@ export function LogPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-line-soft px-4 py-2">
-        <span className="mono flex min-w-0 items-center gap-1.5 truncate text-faint">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-4 py-2">
+        <span className="font-mono flex min-w-0 items-center gap-1.5 truncate text-muted-foreground">
           <ScrollText className="size-3.5 shrink-0" />
           <span className="truncate">{query.data?.source ?? 'logs'}</span>
         </span>
 
-        <div className="ml-2 flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-line bg-surface-2/60 px-2 py-1">
-          <Search className="size-3.5 shrink-0 text-faint" />
+        <div className="ml-2 flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border bg-popover/60 px-2 py-1">
+          <Search className="size-3.5 shrink-0 text-muted-foreground" />
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder="Filter lines…"
             aria-label="Filter log lines"
-            className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[12.5px] text-ink shadow-none placeholder:text-faint focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+            className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[12.5px] text-foreground shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
           />
           {filter && (
             <Button
@@ -128,7 +128,7 @@ export function LogPane({
               size="icon-xs"
               onClick={() => setFilter('')}
               aria-label="Clear filter"
-              className="text-faint hover:bg-transparent hover:text-ink"
+              className="text-muted-foreground hover:bg-transparent hover:text-foreground"
             >
               <X />
             </Button>
@@ -145,8 +145,8 @@ export function LogPane({
                 className={cn(
                   'rounded-lg border text-[12px]',
                   containers.length > 0
-                    ? 'border-signal/35 bg-signal/12 text-signal'
-                    : 'border-line bg-surface-2/60 text-ink-3 hover:text-ink',
+                    ? 'border-primary/35 bg-primary/12 text-primary'
+                    : 'border-border bg-popover/60 text-muted-foreground hover:text-foreground',
                 )}
               >
                 <Boxes />
@@ -180,13 +180,13 @@ export function LogPane({
           type="single"
           value={String(tail)}
           onValueChange={(value) => value && setTail(Number(value))}
-          className="rounded-lg border border-line bg-surface-2/60 p-0.5"
+          className="rounded-lg border border-border bg-popover/60 p-0.5"
         >
           {TAIL_OPTIONS.map((option) => (
             <ToggleGroupItem
               key={option}
               value={String(option)}
-              className="num h-auto rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-ink-3 hover:text-ink data-[state=on]:bg-surface-3 data-[state=on]:text-ink"
+              className="tabular-nums h-auto rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-muted-foreground hover:text-foreground data-[state=on]:bg-secondary data-[state=on]:text-foreground"
             >
               {option}
             </ToggleGroupItem>
@@ -218,22 +218,22 @@ export function LogPane({
       <div
         ref={scroller}
         onScroll={onScroll}
-        className="mono min-h-0 flex-1 overflow-auto bg-base/60 px-4 py-3 leading-[1.65] text-ink-2"
+        className="font-mono min-h-0 flex-1 overflow-auto bg-muted px-4 py-3 leading-[1.65] text-muted-foreground"
       >
         {query.isPending && (
-          <p className="flex items-center gap-2 text-faint">
+          <p className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" /> reading logs…
           </p>
         )}
 
         {query.isError && (
-          <p className="text-st-failed">
+          <p className="text-red-500">
             {(query.error as Error).message}
           </p>
         )}
 
         {!query.isPending && !query.isError && lines.length === 0 && (
-          <p className="text-faint">{needle ? 'No lines match the filter.' : 'No log output.'}</p>
+          <p className="text-muted-foreground">{needle ? 'No lines match the filter.' : 'No log output.'}</p>
         )}
 
         {lines.map(({ line, index }) => (
@@ -243,18 +243,18 @@ export function LogPane({
               'group flex gap-3',
               !wrap && 'whitespace-pre',
               wrap && 'whitespace-pre-wrap break-words',
-              /\b(error|fatal|panic|failed|denied)\b/i.test(line) && 'text-st-failed/90',
-              /\b(warn|warning|deprecated)\b/i.test(line) && 'text-st-degraded/90',
+              /\b(error|fatal|panic|failed|denied)\b/i.test(line) && 'text-red-500/90',
+              /\b(warn|warning|deprecated)\b/i.test(line) && 'text-amber-500/90',
             )}
           >
-            <span className="num w-8 shrink-0 select-none text-right text-faint/50">{index + 1}</span>
+            <span className="tabular-nums w-8 shrink-0 select-none text-right text-muted-foreground/50">{index + 1}</span>
             <span className="min-w-0">{line || ' '}</span>
           </div>
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-line-soft px-4 py-1.5 text-[11.5px] text-faint">
-        <span className="num">{needle ? `${lines.length} / ${allLines.length} lines` : `${lines.length} lines`}</span>
+      <div className="flex items-center justify-between border-t border-border px-4 py-1.5 text-[11.5px] text-muted-foreground">
+        <span className="tabular-nums">{needle ? `${lines.length} / ${allLines.length} lines` : `${lines.length} lines`}</span>
         <span className="flex items-center gap-2">
           {query.isFetching && <Loader2 className="size-3 animate-spin" />}
           updated {formatClock(query.data?.fetchedAt)}
@@ -285,7 +285,7 @@ function IconToggle({
       aria-pressed={active}
       className={cn(
         'rounded-lg border',
-        active ? 'border-signal/35 bg-signal/12 text-signal' : 'border-line bg-surface-2/60 text-ink-3 hover:text-ink',
+        active ? 'border-primary/35 bg-primary/12 text-primary' : 'border-border bg-popover/60 text-muted-foreground hover:text-foreground',
       )}
     >
       {children}

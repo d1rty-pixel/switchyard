@@ -16,14 +16,16 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetClose, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { hasGpuAcceleration } from '@/lib/gpu';
 import { useRefreshService, useServiceDetail } from '@/lib/hooks';
 import { formatAgo, formatClock, formatDuration, formatMetric, formatResource, formatUptime } from '@/lib/format';
 import { iconFor } from '@/lib/icons';
-import { alertTone, resourceEntries } from '@/lib/resources';
+import { alertTone, resourceEntries, RESOURCE_METRIC_INFO, RESOURCE_ORDER } from '@/lib/resources';
 import { stateStyle, toneStyle } from '@/lib/status';
 import { Callout } from './Callout';
 import { EndpointLink } from './ServiceChips';
@@ -36,6 +38,7 @@ import type {
   HistoryEntry,
   HistoryKind,
   HistorySeverity,
+  ResolvedMonitoring,
   ResourceAlert,
   ServiceDetail,
   ServiceSummary,
@@ -75,14 +78,14 @@ export function ServiceDrawer({
         // width has to be stated on the same `data-[side]` variant SheetContent
         // uses, or its own `sm:max-w-sm` is never displaced.
         className={cn(
-          'glass gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[min(84rem,96vw)]',
+          'gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[min(84rem,96vw)]',
           gpu ? 'shadow-[-30px_0_80px_-40px_rgba(0,0,0,1)]' : 'shadow-[-8px_0_16px_-8px_rgba(0,0,0,0.6)]',
         )}
       >
         {detail.isPending && (
           <>
             <SheetTitle className="sr-only">Loading service</SheetTitle>
-            <div className="flex flex-1 items-center justify-center gap-2 text-ink-3">
+            <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> loading service…
             </div>
           </>
@@ -92,9 +95,9 @@ export function ServiceDrawer({
           <>
             <SheetTitle className="sr-only">Service details unavailable</SheetTitle>
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-              <AlertTriangle className="size-6 text-st-failed" />
-              <p className="text-[14px] text-ink">Could not load this service</p>
-              <p className="mono text-faint">{(detail.error as Error).message}</p>
+              <AlertTriangle className="size-6 text-red-500" />
+              <p className="text-[14px] text-foreground">Could not load this service</p>
+              <p className="font-mono text-muted-foreground">{(detail.error as Error).message}</p>
               <Button variant="outline" onClick={() => detail.refetch()}>
                 Try again
               </Button>
@@ -116,7 +119,7 @@ export function ServiceDrawer({
               onValueChange={(value) => setTab(value as Tab)}
               className="min-h-0 flex-1 gap-0"
             >
-              <TabsList variant="line" className="h-auto shrink-0 gap-0.5 border-b border-line-soft px-3">
+              <TabsList variant="line" className="h-auto shrink-0 gap-0.5 border-b border-border px-3">
                 {(
                   [
                     ['overview', 'Overview', Info],
@@ -132,12 +135,12 @@ export function ServiceDrawer({
                       value={id}
                       disabled={disabled}
                       title={disabled ? 'This provider exposes no logs' : undefined}
-                      className="px-3 py-2.5 text-[13.5px] text-ink-3 after:bg-signal hover:text-ink data-active:text-signal dark:text-ink-3 dark:hover:text-ink dark:data-active:text-signal"
+                      className="px-3 py-2.5 text-[13.5px] text-muted-foreground after:bg-primary hover:text-foreground data-active:text-primary dark:text-muted-foreground dark:hover:text-foreground dark:data-active:text-primary"
                     >
                       <Icon className="size-3.5" />
                       {label}
                       {id === 'history' && service.history.length > 0 && (
-                        <span className="num rounded bg-surface-2 px-1 text-[11px] text-ink-3">
+                        <span className="tabular-nums rounded bg-popover px-1 text-[11px] text-muted-foreground">
                           {service.history.length}
                         </span>
                       )}
@@ -166,7 +169,7 @@ export function ServiceDrawer({
               </div>
             </Tabs>
 
-            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line-soft bg-base/40 px-4 py-3">
+            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/40 px-4 py-3">
               {/* The drawer has room, so every action is shown inline. */}
               <ActionRow
                 service={service}
@@ -174,7 +177,7 @@ export function ServiceDrawer({
                 inlineLimit={12}
                 onRun={(action) => onRunAction(service, action)}
               />
-              <span className="text-[11.5px] text-faint">
+              <span className="text-[11.5px] text-muted-foreground">
                 checked {service.checking ? 'now' : formatAgo(service.lastCheckedAt)}
               </span>
             </footer>
@@ -201,7 +204,7 @@ function DrawerHeader({
   const uptime = formatUptime(service.since);
 
   return (
-    <header className="relative shrink-0 border-b border-line-soft p-4">
+    <header className="relative shrink-0 border-b border-border p-4">
       <span
         aria-hidden
         className="absolute inset-x-0 top-0 h-px"
@@ -221,26 +224,26 @@ function DrawerHeader({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <SheetTitle className="truncate text-[17px] font-semibold text-ink">{service.name}</SheetTitle>
+            <SheetTitle className="truncate text-[17px] font-semibold text-foreground">{service.name}</SheetTitle>
             <StatusBadge state={service.state} />
           </div>
-          <p className="mono mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-faint">
+          <p className="font-mono mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
             <span>{service.id}</span>
-            <span className="text-line">·</span>
+            <span className="text-border">·</span>
             <span>{service.providerLabel}</span>
-            <span className="text-line">·</span>
+            <span className="text-border">·</span>
             <span>{service.group}</span>
             {uptime && (
               <>
-                <span className="text-line">·</span>
-                <span className="num flex items-center gap-1">
+                <span className="text-border">·</span>
+                <span className="tabular-nums flex items-center gap-1">
                   <Clock3 className="size-3" />
                   up {uptime}
                 </span>
               </>
             )}
           </p>
-          {service.description && <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{service.description}</p>}
+          {service.description && <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{service.description}</p>}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
@@ -250,9 +253,9 @@ function DrawerHeader({
             onClick={onRefresh}
             aria-label="Re-check status"
             title="Re-check status now"
-            className="border-line bg-surface-2/60 text-ink-3 hover:text-signal"
+            className="border-border bg-popover/60 text-muted-foreground hover:text-primary"
           >
-            <RefreshCw className={cn(refreshing && 'animate-spin text-signal')} />
+            <RefreshCw className={cn(refreshing && 'animate-spin text-primary')} />
           </Button>
           <SheetClose asChild>
             <Button
@@ -260,7 +263,7 @@ function DrawerHeader({
               size="icon-sm"
               onClick={onClose}
               aria-label="Close details"
-              className="border-line bg-surface-2/60 text-ink-3 hover:text-ink"
+              className="border-border bg-popover/60 text-muted-foreground hover:text-foreground"
             >
               <X />
             </Button>
@@ -269,11 +272,11 @@ function DrawerHeader({
       </div>
 
       {service.busy && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-signal/25 bg-signal/[0.07] px-3 py-2 text-[13px] text-signal">
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/[0.07] px-3 py-2 text-[13px] text-primary">
           <StatusIndicator state={service.state} size={10} />
           <span className="font-medium">{service.busy.label}</span>
-          <span className="text-signal/70">running since {formatClock(service.busy.startedAt)}</span>
-          <span className="ml-auto text-[11.5px] text-signal/60">other actions are locked</span>
+          <span className="text-primary/70">running since {formatClock(service.busy.startedAt)}</span>
+          <span className="ml-auto text-[11.5px] text-primary/60">other actions are locked</span>
         </div>
       )}
     </header>
@@ -284,11 +287,12 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
   const problems = [...service.errors.map((text) => ({ text, severe: true })), ...service.warnings.map((text) => ({ text, severe: false }))];
 
   return (
-    <div className="h-full overflow-auto p-4">
+    <ScrollArea className="h-full">
+    <div className="p-4">
       {(service.statusSummary || service.statusDetail) && (
-        <section className="mb-4 rounded-xl border border-line-soft bg-surface-2/40 p-3">
-          <p className="text-[13.5px] text-ink">{service.statusSummary ?? stateStyle(service.state).hint}</p>
-          {service.statusDetail && <p className="mono mt-1.5 text-faint">{service.statusDetail}</p>}
+        <section className="mb-4 rounded-xl border border-border bg-popover/40 p-3">
+          <p className="text-[13.5px] text-foreground">{service.statusSummary ?? stateStyle(service.state).hint}</p>
+          {service.statusDetail && <p className="font-mono mt-1.5 text-muted-foreground">{service.statusDetail}</p>}
         </section>
       )}
 
@@ -315,13 +319,13 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
             {service.metrics.map((metric) => (
               <div
                 key={metric.label}
-                className="flex items-baseline justify-between gap-3 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-1.5"
+                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-popover/40 px-2.5 py-1.5"
               >
-                <dt className="shrink-0 text-[12.5px] text-ink-3">{metric.label}</dt>
+                <dt className="shrink-0 text-[12.5px] text-muted-foreground">{metric.label}</dt>
                 <dd
                   className={cn(
-                    'num min-w-0 truncate text-right text-[13px] font-medium',
-                    metric.kind === 'mono' && 'mono',
+                    'tabular-nums min-w-0 truncate text-right text-[13px] font-medium',
+                    metric.kind === 'mono' && 'font-mono',
                     toneStyle(metric.tone).text,
                   )}
                   title={metric.value}
@@ -353,12 +357,12 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
             {service.ports.map((port) => (
               <span
                 key={`${port.protocol}-${port.hostPort ?? port.port}`}
-                className="num inline-flex items-center gap-1.5 rounded-lg border border-route/25 bg-route/10 px-2.5 py-1.5 text-[13px] text-route"
+                className="tabular-nums inline-flex items-center gap-1.5 rounded-lg border border-secondary/25 bg-secondary/10 px-2.5 py-1.5 text-[13px] text-secondary"
               >
                 <Radio className="size-3" />
                 {port.hostPort ? `${port.hostPort} → ${port.port}` : port.port}
-                <span className="text-[11px] uppercase text-route/60">{port.protocol}</span>
-                {port.label && <span className="text-route/70">{port.label}</span>}
+                <span className="text-[11px] uppercase text-secondary/60">{port.protocol}</span>
+                {port.label && <span className="text-secondary/70">{port.label}</span>}
               </span>
             ))}
           </div>
@@ -375,6 +379,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
       )}
       </div>
     </div>
+    </ScrollArea>
   );
 }
 
@@ -405,29 +410,29 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
             {entries.map((entry) => (
               <div
                 key={entry.metric}
-                className="flex items-baseline justify-between gap-3 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-1.5"
+                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-popover/40 px-2.5 py-1.5"
               >
-                <dt className="shrink-0 text-[12.5px] text-ink-3">{entry.label}</dt>
+                <dt className="shrink-0 text-[12.5px] text-muted-foreground">{entry.label}</dt>
                 <dd
                   className={cn(
-                    'num min-w-0 truncate text-right text-[13px] font-medium',
+                    'tabular-nums min-w-0 truncate text-right text-[13px] font-medium',
                     toneStyle(alertTone(entry.alert?.severity)).text,
                   )}
                 >
                   {formatResource(entry.value, entry.unit)}
                   {entry.metric === 'memory' && sample?.memoryLimitBytes !== undefined && (
-                    <span className="text-faint"> / {formatResource(sample.memoryLimitBytes, 'bytes')}</span>
+                    <span className="text-muted-foreground"> / {formatResource(sample.memoryLimitBytes, 'bytes')}</span>
                   )}
                 </dd>
               </div>
             ))}
           </dl>
-          <p className="mt-1.5 text-[12px] text-faint">
+          <p className="mt-1.5 text-[12px] text-muted-foreground">
             {sample?.attribution} · sampled {formatAgo(sample?.at)}
           </p>
         </>
       ) : (
-        <p className="text-[13px] text-faint">
+        <p className="text-[13px] text-muted-foreground">
           {service.monitored
             ? 'No samples yet — nothing measurable while the service is not running.'
             : 'This provider reports no resource samples.'}
@@ -439,12 +444,12 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
           {sample.children.map((child) => (
             <li
               key={child.id}
-              className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-lg border border-line-soft bg-surface-2/30 px-2.5 py-1.5"
+              className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-lg border border-border bg-popover/30 px-2.5 py-1.5"
             >
-              <span className="mono min-w-0 flex-1 truncate text-ink-2">{child.name}</span>
+              <span className="font-mono min-w-0 flex-1 truncate text-muted-foreground">{child.name}</span>
               {resourceEntries(child).map((entry) => (
-                <span key={entry.metric} className="num text-[12.5px] text-ink-3">
-                  <span className="text-faint">{entry.short} </span>
+                <span key={entry.metric} className="tabular-nums text-[12.5px] text-muted-foreground">
+                  <span className="text-muted-foreground">{entry.short} </span>
                   {formatResource(entry.value, entry.unit)}
                 </span>
               ))}
@@ -464,7 +469,7 @@ function AlertRow({ alert }: { alert: ResourceAlert }) {
       </span>{' '}
       — {formatResource(alert.value, alert.unit)} against a threshold of{' '}
       {formatResource(alert.threshold, alert.unit)}.{' '}
-      <span className="text-faint">
+      <span className="text-muted-foreground">
         breach began {formatAgo(alert.breachedAt)}, alerting since {formatAgo(alert.activatedAt)}
         {alert.stale && ' · no fresh samples'}
       </span>
@@ -475,19 +480,19 @@ function AlertRow({ alert }: { alert: ResourceAlert }) {
 /* Container health is the provider's own vocabulary, not a service state — it
    maps onto the same status colours but has no entry in STATE_STYLES. */
 const HEALTH_CHIP: Record<string, string> = {
-  healthy: 'border-st-running/30 bg-st-running/10 text-st-running',
-  unhealthy: 'border-st-failed/30 bg-st-failed/10 text-st-failed',
-  starting: 'border-st-starting/30 bg-st-starting/10 text-st-starting',
+  healthy: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
+  unhealthy: 'border-red-500/30 bg-red-500/10 text-red-500',
+  starting: 'border-sky-500/30 bg-sky-500/10 text-sky-500',
 };
 
 function ChildRow({ child }: { child: ChildStatus }) {
   const style = stateStyle(child.state);
   return (
-    <li className="flex items-center gap-2.5 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-2">
+    <li className="flex items-center gap-2.5 rounded-lg border border-border bg-popover/40 px-2.5 py-2">
       <StatusIndicator state={child.state} size={10} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13.5px] font-medium text-ink">{child.name}</p>
-        <p className="mono truncate text-faint">
+        <p className="truncate text-[13.5px] font-medium text-foreground">{child.name}</p>
+        <p className="font-mono truncate text-muted-foreground">
           {child.stateLabel ?? style.label}
           {child.image && ` · ${child.image}`}
         </p>
@@ -501,7 +506,7 @@ function ChildRow({ child }: { child: ChildStatus }) {
         </Badge>
       )}
       {child.ports && child.ports.length > 0 && (
-        <span className="num hidden shrink-0 gap-1 text-[11.5px] text-route sm:flex">
+        <span className="tabular-nums hidden shrink-0 gap-1 text-[11.5px] text-secondary sm:flex">
           {child.ports.slice(0, 2).map((port) => port.hostPort ?? port.port).join(', ')}
         </span>
       )}
@@ -510,9 +515,9 @@ function ChildRow({ child }: { child: ChildStatus }) {
 }
 
 const HISTORY_DOT: Record<HistorySeverity, string> = {
-  info: 'bg-st-running',
-  warning: 'bg-st-degraded',
-  error: 'bg-st-failed',
+  info: 'bg-emerald-500',
+  warning: 'bg-amber-500',
+  error: 'bg-red-500',
 };
 
 const HISTORY_KIND_LABEL: Record<HistoryKind, string> = {
@@ -528,9 +533,9 @@ function HistoryTab({ service }: { service: ServiceDetail }) {
   if (service.history.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-        <History className="size-6 text-faint" />
-        <p className="text-[14px] text-ink-2">Nothing has happened yet</p>
-        <p className="text-[13px] text-faint">
+        <History className="size-6 text-muted-foreground" />
+        <p className="text-[14px] text-muted-foreground">Nothing has happened yet</p>
+        <p className="text-[13px] text-muted-foreground">
           Actions, alerts, state changes and probe failures appear here as they happen.
         </p>
       </div>
@@ -538,11 +543,13 @@ function HistoryTab({ service }: { service: ServiceDetail }) {
   }
 
   return (
-    <div className="h-full space-y-2 overflow-auto p-4">
+    <ScrollArea className="h-full">
+    <div className="space-y-2 p-4">
       {service.history.map((entry, index) => (
         <HistoryRow key={`${entry.at}-${index}`} entry={entry} />
       ))}
     </div>
+    </ScrollArea>
   );
 }
 
@@ -550,12 +557,12 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const headline = (
     <>
       <span className={cn('size-1.5 shrink-0 rounded-full', HISTORY_DOT[entry.severity])} />
-      <span className="text-[13.5px] font-medium text-ink">{entry.label}</span>
-      <span className="min-w-0 flex-1 truncate text-[13px] text-ink-3">{entry.message}</span>
+      <span className="text-[13.5px] font-medium text-foreground">{entry.label}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{entry.message}</span>
       {entry.action && (
-        <span className="num shrink-0 text-[11.5px] text-faint">{formatDuration(entry.action.durationMs)}</span>
+        <span className="tabular-nums shrink-0 text-[11.5px] text-muted-foreground">{formatDuration(entry.action.durationMs)}</span>
       )}
-      <span className="num shrink-0 text-[11.5px] text-faint">{formatClock(entry.at)}</span>
+      <span className="tabular-nums shrink-0 text-[11.5px] text-muted-foreground">{formatClock(entry.at)}</span>
     </>
   );
 
@@ -563,33 +570,33 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   // everything they have to say in one line, and a disclosure triangle that
   // opens onto a repeat of the summary is worse than no triangle.
   const details = entry.action ? (
-    <div className="space-y-2 border-t border-line-soft px-3 py-2.5">
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-faint">
+    <div className="space-y-2 border-t border-border px-3 py-2.5">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
         <span>
-          action <span className="mono text-ink-2">{entry.action.actionId}</span>
+          action <span className="font-mono text-muted-foreground">{entry.action.actionId}</span>
         </span>
         <span>
-          exit <span className="num text-ink-2">{entry.action.exitCode ?? '—'}</span>
+          exit <span className="tabular-nums text-muted-foreground">{entry.action.exitCode ?? '—'}</span>
         </span>
         <span>started {formatAgo(entry.at)}</span>
       </div>
       {entry.action.excerpt && (
-        <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-2 text-faint">
-          {entry.action.excerpt}
-        </pre>
+        <ScrollArea className="h-40 rounded-lg border border-border bg-muted">
+          <pre className="font-mono whitespace-pre-wrap p-2 text-muted-foreground">{entry.action.excerpt}</pre>
+        </ScrollArea>
       )}
     </div>
   ) : entry.alert ? (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line-soft px-3 py-2.5 text-[12px] text-faint">
+    <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-3 py-2.5 text-[12px] text-muted-foreground">
       <span>
-        metric <span className="mono text-ink-2">{entry.alert.metric}</span>
+        metric <span className="font-mono text-muted-foreground">{entry.alert.metric}</span>
       </span>
       <span>
-        measured <span className="num text-ink-2">{formatResource(entry.alert.value, entry.alert.unit)}</span>
+        measured <span className="tabular-nums text-muted-foreground">{formatResource(entry.alert.value, entry.alert.unit)}</span>
       </span>
       <span>
         {entry.alert.severity} threshold{' '}
-        <span className="num text-ink-2">{formatResource(entry.alert.threshold, entry.alert.unit)}</span>
+        <span className="tabular-nums text-muted-foreground">{formatResource(entry.alert.threshold, entry.alert.unit)}</span>
       </span>
       <span>{formatAgo(entry.at)}</span>
     </div>
@@ -597,24 +604,98 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
 
   if (!details) {
     return (
-      <div className="flex items-center gap-2.5 rounded-xl border border-line-soft bg-surface-2/40 px-3 py-2.5">
+      <div className="flex items-center gap-2.5 rounded-xl border border-border bg-popover/40 px-3 py-2.5">
         {headline}
-        <span className="shrink-0 text-[11.5px] text-faint">{HISTORY_KIND_LABEL[entry.kind]}</span>
+        <span className="shrink-0 text-[11.5px] text-muted-foreground">{HISTORY_KIND_LABEL[entry.kind]}</span>
       </div>
     );
   }
 
   return (
-    <details className="group rounded-xl border border-line-soft bg-surface-2/40 open:bg-surface-2/60">
+    <details className="group rounded-xl border border-border bg-popover/40 open:bg-popover/60">
       <summary className="flex cursor-pointer items-center gap-2.5 px-3 py-2.5">{headline}</summary>
       {details}
     </details>
   );
 }
 
+/** Effective monitoring config, rendered as a table rather than raw JSON. */
+function MonitoringTable({ monitoring }: { monitoring: ResolvedMonitoring }) {
+  const rows = RESOURCE_ORDER.filter((metric) => monitoring.thresholds[metric]);
+
+  return (
+    <div className="space-y-2.5">
+      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <dt>monitoring</dt>
+          <dd>
+            <Badge
+              variant="outline"
+              className={cn(
+                'h-auto px-1.5 py-0 text-[11px]',
+                monitoring.enabled
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
+                  : 'border-slate-500/30 bg-slate-500/10 text-slate-500',
+              )}
+            >
+              {monitoring.enabled ? 'enabled' : 'disabled'}
+            </Badge>
+          </dd>
+        </div>
+        <div>
+          <dt className="inline">clear below</dt> <dd className="inline tabular-nums">{monitoring.clearBelow}%</dd>
+        </div>
+        <div>
+          <dt className="inline">cooldown</dt>{' '}
+          <dd className="inline tabular-nums">{formatDuration(monitoring.cooldownMs)}</dd>
+        </div>
+      </dl>
+
+      {rows.length > 0 ? (
+        <div className="overflow-hidden rounded-lg border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent [&>th]:border-b [&>th]:border-border">
+                <TableHead className="h-auto px-2.5 py-1.5 text-[11.5px]">Metric</TableHead>
+                <TableHead className="h-auto px-2.5 py-1.5 text-right text-[11.5px]">Warning</TableHead>
+                <TableHead className="h-auto px-2.5 py-1.5 text-right text-[11.5px]">Critical</TableHead>
+                <TableHead className="h-auto px-2.5 py-1.5 text-right text-[11.5px]">Sustained for</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((metric) => {
+                const threshold = monitoring.thresholds[metric]!;
+                return (
+                  <TableRow key={metric} className="border-border/60">
+                    <TableCell className="px-2.5 py-1.5 text-[12.5px] text-foreground">
+                      {RESOURCE_METRIC_INFO[metric].label}
+                    </TableCell>
+                    <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-amber-500">
+                      {threshold.warning !== undefined ? formatResource(threshold.warning, threshold.unit) : '—'}
+                    </TableCell>
+                    <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-red-500">
+                      {threshold.critical !== undefined ? formatResource(threshold.critical, threshold.unit) : '—'}
+                    </TableCell>
+                    <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-muted-foreground">
+                      {formatDuration(threshold.forMs)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <p className="text-[13px] text-muted-foreground">No thresholds configured.</p>
+      )}
+    </div>
+  );
+}
+
 function ConfigTab({ service }: { service: ServiceDetail }) {
   return (
-    <div className="grid h-full items-start gap-x-6 gap-y-5 overflow-auto p-4 xl:grid-cols-2">
+    <ScrollArea className="h-full">
+    <div className="grid items-start gap-x-6 gap-y-5 p-4 xl:grid-cols-2">
       <Section title="Service definition" icon={Settings2}>
         <dl className="space-y-1.5">
           <Row label="id" value={service.id} mono />
@@ -634,12 +715,12 @@ function ConfigTab({ service }: { service: ServiceDetail }) {
 
       {service.envKeys.length > 0 && (
         <Section title="Environment" icon={FolderOpen}>
-          <p className="mb-2 text-[12.5px] text-faint">
+          <p className="mb-2 text-[12.5px] text-muted-foreground">
             Values are never sent to the browser — only the variable names.
           </p>
           <div className="flex flex-wrap gap-1.5">
             {service.envKeys.map((key) => (
-              <span key={key} className="mono rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-ink-2">
+              <span key={key} className="font-mono rounded-md border border-border bg-popover/50 px-1.5 py-0.5 text-muted-foreground">
                 {key}
               </span>
             ))}
@@ -648,17 +729,17 @@ function ConfigTab({ service }: { service: ServiceDetail }) {
       )}
 
       <Section title="Provider configuration" icon={Settings2}>
-        <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-3 text-ink-2">
-          {JSON.stringify(service.providerConfig, null, 2)}
-        </pre>
+        <ScrollArea className="h-80 rounded-lg border border-border bg-muted">
+          <pre className="font-mono whitespace-pre-wrap p-3 text-muted-foreground">
+            {JSON.stringify(service.providerConfig, null, 2)}
+          </pre>
+        </ScrollArea>
       </Section>
 
       {/* Effective values, i.e. the global monitoring block already merged in —
           which is the thing that is hard to work out from the files alone. */}
       <Section title="Monitoring (effective)" icon={Gauge}>
-        <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-3 text-ink-2">
-          {JSON.stringify(service.monitoringConfig, null, 2)}
-        </pre>
+        <MonitoringTable monitoring={service.monitoringConfig} />
       </Section>
 
       {service.raw && Object.keys(service.raw).length > 0 && (
@@ -671,38 +752,39 @@ function ConfigTab({ service }: { service: ServiceDetail }) {
         </Section>
       )}
     </div>
+    </ScrollArea>
   );
 }
 
 function CommandOutputBlock({ output }: { output: NonNullable<ServiceDetail['lastProbe']> }) {
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-faint">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
         <span>
-          exit <span className="num text-ink-2">{output.exitCode ?? '—'}</span>
+          exit <span className="tabular-nums text-muted-foreground">{output.exitCode ?? '—'}</span>
         </span>
         {output.durationMs !== undefined && (
           <span>
-            took <span className="num text-ink-2">{output.durationMs} ms</span>
+            took <span className="tabular-nums text-muted-foreground">{output.durationMs} ms</span>
           </span>
         )}
       </div>
       {output.argv && (
         // Wrap rather than hide behind a scrollbar: argv lines with long
         // --format templates are exactly what someone reads this block for.
-        <pre className="mono whitespace-pre-wrap break-all rounded-lg border border-line bg-base/60 p-2 text-signal/80">
+        <pre className="font-mono whitespace-pre-wrap break-all rounded-lg border border-border bg-muted p-2 text-primary/80">
           {output.argv.join(' ')}
         </pre>
       )}
       {output.stdout && (
-        <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/60 p-2 text-ink-2">
-          {output.stdout}
-        </pre>
+        <ScrollArea className="h-48 rounded-lg border border-border bg-muted">
+          <pre className="font-mono whitespace-pre-wrap break-all p-2 text-muted-foreground">{output.stdout}</pre>
+        </ScrollArea>
       )}
       {output.stderr && (
-        <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-st-degraded/20 bg-st-degraded/[0.05] p-2 text-st-degraded/90">
-          {output.stderr}
-        </pre>
+        <ScrollArea className="h-48 rounded-lg border border-amber-500/20 bg-amber-500/[0.05]">
+          <pre className="font-mono whitespace-pre-wrap break-all p-2 text-amber-500/90">{output.stderr}</pre>
+        </ScrollArea>
       )}
     </div>
   );
@@ -719,7 +801,7 @@ function Section({
 }) {
   return (
     <section>
-      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider text-faint">
+      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
         <Icon className="size-3.5" />
         {title}
       </h3>
@@ -730,9 +812,9 @@ function Section({
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-line-soft/60 pb-1 last:border-0">
-      <dt className="shrink-0 text-[12.5px] text-ink-3">{label}</dt>
-      <dd className={cn('min-w-0 break-all text-right text-[13px] text-ink', mono && 'mono')}>{value}</dd>
+    <div className="flex items-baseline justify-between gap-3 border-b border-border/60 pb-1 last:border-0">
+      <dt className="shrink-0 text-[12.5px] text-muted-foreground">{label}</dt>
+      <dd className={cn('min-w-0 break-all text-right text-[13px] text-foreground', mono && 'font-mono')}>{value}</dd>
     </div>
   );
 }

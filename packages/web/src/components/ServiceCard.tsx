@@ -4,7 +4,6 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { iconFor } from '@/lib/icons';
 import { alertTone, resourceEntries } from '@/lib/resources';
-import { stateStyle } from '@/lib/status';
 import { formatResource } from '@/lib/format';
 import { Callout } from './Callout';
 import {
@@ -15,7 +14,6 @@ import {
   PortChip,
   ProviderChip,
   ResourceChip,
-  StateRail,
   UptimeLabel,
 } from './ServiceChips';
 import { StatusBadge } from './StatusIndicator';
@@ -29,7 +27,6 @@ export interface ServiceCardProps {
 }
 
 export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) {
-  const style = stateStyle(service.state);
   const Icon = iconFor(service.icon, service.type);
   const primaryUrl = service.urls.find((url) => url.primary) ?? service.urls[0];
   const highlights = service.metrics.filter((metric) => metric.highlight).slice(0, 3);
@@ -47,25 +44,22 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
   return (
     <Card
       className={cn(
-        'animate-rise',
-        // No hover lift, shadow or surface change — the card stays put; the only
+        'animate-in fade-in slide-in-from-bottom-1',
+        // No hover lift, shadow or card change — the card stays put; the only
         // hover feedback is on the interactive elements themselves.
-        // `overflow-visible`: the action menu is portalled, but the sheen and
-        // the state rail sit on the card's own edge.
-        'card-sheen glass group relative gap-0 overflow-visible rounded-[var(--radius-card)] bg-transparent py-0 ring-0',
-        service.busy && 'border-signal/30',
+        // `overflow-visible`: the action menu is portalled and must escape
+        // the card's bounds.
+        'group relative gap-0 overflow-visible py-0',
+        service.busy && 'border-primary/30',
       )}
     >
-      {/* State rail: the fastest signal when scanning a full grid. */}
-      <StateRail color={style.color} dimmed={service.state === 'stopped'} className="inset-y-3" />
-
       <div className="flex items-start gap-3 p-4 pl-5">
         <Button
           variant="outline"
           size="icon-lg"
           onClick={onOpen}
           aria-label={`Open ${service.name}`}
-          className="shrink-0 rounded-xl border-line bg-surface-2/80 text-ink-2 hover:border-signal/40 hover:text-signal"
+          className="shrink-0 rounded-xl border-border bg-popover/80 text-muted-foreground hover:border-primary/40 hover:text-primary"
         >
           <Icon className="size-4.5" />
         </Button>
@@ -73,19 +67,19 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <button type="button" onClick={onOpen} className="min-w-0 text-left">
-              <h3 className="truncate text-[15px] font-semibold leading-tight text-ink transition-colors group-hover:text-signal">
+              <h3 className="truncate text-[15px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
                 {service.name}
               </h3>
-              <ProviderChip service={service} />
+              <ProviderChip service={service} className="mt-1" />
             </button>
             <StatusBadge state={service.state} />
           </div>
 
           {service.description && (
-            <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-ink-2">{service.description}</p>
+            <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-muted-foreground">{service.description}</p>
           )}
 
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-3">
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted-foreground">
             <ActivityLine service={service} />
             {service.since && <UptimeLabel service={service} />}
           </p>
@@ -132,16 +126,16 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
         <Callout tone="warn" icon={AlertTriangle} className="mx-4 mb-3 ml-5 text-[12.5px]">
           {warning}
           {extraProblems > 0 && (
-            <button type="button" onClick={onOpen} className="ml-1 underline decoration-dotted hover:text-ink">
+            <button type="button" onClick={onOpen} className="ml-1 underline decoration-dotted hover:text-foreground">
               +{extraProblems} more
             </button>
           )}
         </Callout>
       )}
 
-      <CardFooter className="mt-auto flex items-center justify-between gap-2 rounded-b-[var(--radius-card)] border-t border-line-soft/70 bg-transparent px-4 py-2.5 pl-5">
+      <CardFooter className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 px-4 py-2.5 pl-5">
         <ActionRow service={service} onRun={(action) => onRunAction(service, action)} />
-        <div className="flex shrink-0 items-center gap-2 text-[11.5px] text-faint">
+        <div className="flex shrink-0 items-center gap-2 text-[11.5px] text-muted-foreground">
           <LastCheckedInfo service={service} />
         </div>
         </CardFooter>
@@ -152,22 +146,22 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
 export function SkeletonCard({ delay = 0 }: { delay?: number }) {
   return (
     <div
-      className="glass animate-shimmer rounded-[var(--radius-card)] p-4"
+      className="animate-pulse rounded-xl border bg-card p-4"
       style={{ animationDelay: `${delay}ms` }}
       aria-hidden
     >
       <div className="flex items-start gap-3">
-        <div className="size-9 rounded-xl bg-surface-2" />
+        <div className="size-9 rounded-xl bg-popover" />
         <div className="flex-1 space-y-2">
-          <div className="h-3 w-1/3 rounded bg-surface-2" />
-          <div className="h-2.5 w-1/5 rounded bg-surface-2/70" />
-          <div className="h-2.5 w-4/5 rounded bg-surface-2/50" />
+          <div className="h-3 w-1/3 rounded bg-popover" />
+          <div className="h-2.5 w-1/5 rounded bg-popover/70" />
+          <div className="h-2.5 w-4/5 rounded bg-popover/50" />
         </div>
-        <div className="h-5 w-16 rounded-full bg-surface-2" />
+        <div className="h-5 w-16 rounded-full bg-popover" />
       </div>
       <div className="mt-4 flex gap-2">
-        <div className="h-6 w-16 rounded-lg bg-surface-2" />
-        <div className="h-6 w-16 rounded-lg bg-surface-2/70" />
+        <div className="h-6 w-16 rounded-lg bg-popover" />
+        <div className="h-6 w-16 rounded-lg bg-popover/70" />
       </div>
     </div>
   );

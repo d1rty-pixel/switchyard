@@ -38,10 +38,10 @@ export interface ServiceTableProps {
  */
 export function ServiceTable({ services, groupNames, onOpen, onRunAction }: ServiceTableProps) {
   return (
-    <div className="glass card-sheen overflow-hidden rounded-[var(--radius-card)]">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <Table className="min-w-[56rem] border-collapse text-left">
         <TableHeader>
-          <TableRow className="text-[11.5px] uppercase tracking-wider text-faint hover:bg-transparent [&>th]:border-b [&>th]:border-line/70">
+          <TableRow className="text-[11.5px] uppercase tracking-wider text-muted-foreground hover:bg-transparent [&>th]:border-b [&>th]:border-border/70">
             <Th className="pl-5">Service</Th>
             <Th className="w-px">State</Th>
             <Th className="hidden lg:table-cell">Detail</Th>
@@ -102,23 +102,23 @@ function ServiceRow({
 
   return (
     <TableRow
-      className={cn('group border-line-soft/50 align-middle hover:bg-surface-2/40', service.busy && 'bg-signal/[0.04]')}
+      className={cn('group border-border/50 align-middle hover:bg-popover/40', service.busy && 'bg-primary/[0.04]')}
     >
       {/* Name cell carries the state rail, mirroring the card's left edge. */}
       <TableCell className="relative py-2.5 pl-5 pr-3">
         <StateRail color={style.color} dimmed={service.state === 'stopped'} className="inset-y-1.5" />
         <div className="flex min-w-0 items-center gap-2.5">
-          <Icon className="size-4 shrink-0 text-ink-3" />
+          <Icon className="size-4 shrink-0 text-muted-foreground" />
           <button type="button" onClick={onOpen} className="min-w-0 text-left">
             <span className="flex items-center gap-1.5">
-              <span className="truncate text-[14px] font-semibold text-ink transition-colors group-hover:text-signal">
+              <span className="truncate text-[14px] font-semibold text-foreground transition-colors group-hover:text-primary">
                 {service.name}
               </span>
               {warning && (
                 // The tooltip lives on a wrapper: a `title` attribute on an SVG
                 // element is not rendered as one.
                 <span
-                  className="shrink-0 text-st-degraded"
+                  className="shrink-0 text-amber-500"
                   title={extraWarnings > 0 ? `${warning} (+${extraWarnings} more)` : warning}
                 >
                   <AlertTriangle className="size-3.5" />
@@ -146,7 +146,7 @@ function ServiceRow({
         <StatusBadge state={service.state} />
       </TableCell>
 
-      <TableCell className="hidden max-w-[22rem] px-3 py-2.5 text-[12.5px] text-ink-2 lg:table-cell">
+      <TableCell className="hidden max-w-[22rem] px-3 py-2.5 text-[12.5px] text-muted-foreground lg:table-cell">
         <ActivityLine service={service} className="block" />
         {!service.busy && !service.statusSummary && (
           <span className="block truncate" title={service.description}>
@@ -155,9 +155,9 @@ function ServiceRow({
         )}
       </TableCell>
 
-      <TableCell className="hidden px-3 py-2.5 text-[12.5px] text-ink-3 xl:table-cell">{groupName}</TableCell>
+      <TableCell className="hidden px-3 py-2.5 text-[12.5px] text-muted-foreground xl:table-cell">{groupName}</TableCell>
 
-      <TableCell className="hidden px-3 py-2.5 text-[12.5px] text-ink-3 md:table-cell">
+      <TableCell className="hidden px-3 py-2.5 text-[12.5px] text-muted-foreground md:table-cell">
         <UptimeLabel service={service} />
       </TableCell>
 
@@ -170,15 +170,15 @@ function ServiceRow({
               <span
                 key={entry.metric}
                 title={`${entry.label} · ${service.resources?.attribution ?? ''}`}
-                className={cn('num', entry.alert ? toneStyle(alertTone(entry.alert.severity)).text : 'text-ink-3')}
+                className={cn('tabular-nums', entry.alert ? toneStyle(alertTone(entry.alert.severity)).text : 'text-muted-foreground')}
               >
-                <span className="text-faint">{entry.short} </span>
+                <span className="text-muted-foreground">{entry.short} </span>
                 {formatResource(entry.value, entry.unit)}
               </span>
             ))}
           </span>
         ) : (
-          <span className="text-faint">—</span>
+          <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
 
@@ -188,7 +188,7 @@ function ServiceRow({
             <PortChip key={`${port.protocol}-${port.hostPort ?? port.port}`} port={port} />
           ))}
           {primaryUrl && <EndpointLink url={primaryUrl} />}
-          {service.ports.length === 0 && !primaryUrl && <span className="text-[12.5px] text-faint">—</span>}
+          {service.ports.length === 0 && !primaryUrl && <span className="text-[12.5px] text-muted-foreground">—</span>}
         </div>
       </TableCell>
 
@@ -198,7 +198,7 @@ function ServiceRow({
         </div>
       </TableCell>
 
-      <TableCell className="hidden px-3 py-2.5 text-right text-[11.5px] text-faint sm:table-cell">
+      <TableCell className="hidden px-3 py-2.5 text-right text-[11.5px] text-muted-foreground sm:table-cell">
         <span className="flex items-center justify-end gap-2">
           <LastCheckedInfo service={service} actionClassName="xl:flex" />
         </span>
@@ -209,18 +209,18 @@ function ServiceRow({
 
 export function SkeletonTable({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="glass overflow-hidden rounded-[var(--radius-card)]" aria-hidden>
+    <div className="overflow-hidden rounded-xl border bg-card" aria-hidden>
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
-          className="animate-shimmer flex items-center gap-3 border-b border-line-soft/50 px-5 py-3 last:border-b-0"
+          className="animate-pulse flex items-center gap-3 border-b border-border/50 px-5 py-3 last:border-b-0"
           style={{ animationDelay: `${index * 90}ms` }}
         >
-          <div className="size-4 rounded bg-surface-2" />
-          <div className="h-3 w-40 rounded bg-surface-2" />
-          <div className="h-5 w-20 rounded-full bg-surface-2/70" />
-          <div className="h-2.5 flex-1 rounded bg-surface-2/40" />
-          <div className="h-6 w-16 rounded-lg bg-surface-2/70" />
+          <div className="size-4 rounded bg-popover" />
+          <div className="h-3 w-40 rounded bg-popover" />
+          <div className="h-5 w-20 rounded-full bg-popover/70" />
+          <div className="h-2.5 flex-1 rounded bg-popover/40" />
+          <div className="h-6 w-16 rounded-lg bg-popover/70" />
         </div>
       ))}
     </div>

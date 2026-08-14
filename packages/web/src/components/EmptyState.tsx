@@ -15,11 +15,11 @@ export function NoServicesState({ configPath }: { configPath?: string }) {
       body="Switchyard reads one file per service from services.d/. Drop a file in, hit Reload config — no restart needed."
     >
       {configPath && (
-        <p className="mono mt-1 text-faint">
-          config: <span className="text-ink-2">{configPath}</span>
+        <p className="font-mono mt-1 text-muted-foreground">
+          config: <span className="text-muted-foreground">{configPath}</span>
         </p>
       )}
-      <pre className="mono mt-4 w-full max-w-lg overflow-x-auto rounded-xl border border-line bg-base/60 p-3 text-left text-ink-2">
+      <pre className="font-mono mt-4 w-full max-w-lg overflow-x-auto rounded-xl border border-border bg-muted p-3 text-left text-muted-foreground">
 {`# services.d/my-worker.yaml
 id: my-worker
 name: My worker
@@ -43,7 +43,7 @@ provider:
 export function NoMatchesState({ onClear }: { onClear: () => void }) {
   return (
     <Shell
-      icon={<SearchX className="size-8 text-faint" />}
+      icon={<SearchX className="size-8 text-muted-foreground" />}
       title="Nothing matches these filters"
       body="Try a different search term, or clear the active filters."
     >
@@ -58,14 +58,14 @@ export function NoMatchesState({ onClear }: { onClear: () => void }) {
 export function ApiDownState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <Shell
-      icon={<Unplug className="size-8 text-st-failed" />}
+      icon={<Unplug className="size-8 text-red-500" />}
       title="Cannot reach the Switchyard API"
       body="The dashboard is loaded, but the backend did not answer."
     >
-      <p className="mono mt-1 max-w-lg break-words text-st-failed/80">{message}</p>
+      <p className="font-mono mt-1 max-w-lg break-words text-red-500/80">{message}</p>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <SignalButton onClick={onRetry}>Retry</SignalButton>
-        <code className="mono rounded-lg border border-line bg-base/60 px-2.5 py-1.5 text-faint">npm start</code>
+        <code className="font-mono rounded-lg border border-border bg-muted px-2.5 py-1.5 text-muted-foreground">npm start</code>
       </div>
     </Shell>
   );
@@ -82,7 +82,7 @@ export function ConfigWarnings({ warnings }: { warnings: string[] }) {
         </span>
         <ul className="mt-1 space-y-0.5">
           {warnings.map((warning) => (
-            <li key={warning} className="mono break-words text-st-degraded/80">
+            <li key={warning} className="font-mono break-words text-amber-500/80">
               {warning}
             </li>
           ))}
@@ -112,7 +112,7 @@ export function GpuAccelWarning({ dismissed, onDismiss }: { dismissed: boolean; 
             size="icon-xs"
             onClick={onDismiss}
             aria-label="Dismiss"
-            className="shrink-0 text-st-degraded/70 hover:bg-st-degraded/10 hover:text-st-degraded"
+            className="shrink-0 text-amber-500/70 hover:bg-amber-500/10 hover:text-amber-500"
           >
             <X />
           </Button>
@@ -127,9 +127,17 @@ export function GpuAccelWarning({ dismissed, onDismiss }: { dismissed: boolean; 
  * no actions, but they should not vanish silently either — the whole point of
  * the flag is that you can find them again.
  */
-export function DisabledServices({ services }: { services: DisabledService[] }) {
+export function DisabledServices({
+  services,
+  providers,
+}: {
+  services: DisabledService[];
+  providers: { type: string; label: string }[];
+}) {
   const [open, setOpen] = useState(false);
   if (services.length === 0) return null;
+
+  const providerLabel = new Map(providers.map((provider) => [provider.type, provider.label]));
 
   return (
     <div className="mx-auto mt-8 max-w-[110rem] px-4 sm:px-6">
@@ -138,7 +146,7 @@ export function DisabledServices({ services }: { services: DisabledService[] }) 
         size="sm"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="rounded-lg border-line-soft bg-surface/40 text-[12.5px] text-ink-3 hover:text-ink"
+        className="rounded-lg border-border bg-card/40 text-[12.5px] text-muted-foreground hover:text-foreground"
       >
         <PowerOff />
         {services.length} disabled {services.length === 1 ? 'service' : 'services'}
@@ -146,21 +154,16 @@ export function DisabledServices({ services }: { services: DisabledService[] }) 
       </Button>
 
       {open && (
-        <ul className="animate-rise mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="animate-in fade-in slide-in-from-bottom-1 mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
           {services.map((service) => (
             <li
               key={service.id}
-              className="flex items-center gap-2 rounded-lg border border-line-soft border-dashed bg-surface/30 px-2.5 py-2"
+              className="flex items-center gap-2 rounded-lg border border-border border-dashed bg-card/30 px-2.5 py-2"
             >
-              <PowerOff className="size-3.5 shrink-0 text-faint" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13.5px] text-ink-2">{service.name}</span>
-                <span className="mono block truncate text-faint" title={service.source}>
-                  {service.type} · {service.source.split('/').pop()}
-                </span>
-              </span>
-              <span className="shrink-0 rounded border border-line-soft px-1.5 py-px text-[11px] text-faint">
-                enabled: false
+              <PowerOff className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground">{service.name}</span>
+              <span className="shrink-0 rounded border border-border bg-popover/60 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
+                {providerLabel.get(service.type) ?? service.type}
               </span>
             </li>
           ))}
@@ -191,7 +194,7 @@ function SignalButton({ className, ...props }: React.ComponentProps<typeof Butto
     <Button
       variant="outline"
       className={cn(
-        'rounded-lg border-signal/35 bg-signal/12 text-[13px] font-medium text-signal hover:bg-signal/20 hover:text-signal',
+        'rounded-lg border-primary/35 bg-primary/12 text-[13px] font-medium text-primary hover:bg-primary/20 hover:text-primary',
         className,
       )}
       {...props}
@@ -211,10 +214,10 @@ function Shell({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="animate-rise flex flex-col items-center justify-center px-6 py-20 text-center">
+    <div className="animate-in fade-in slide-in-from-bottom-1 flex flex-col items-center justify-center px-6 py-20 text-center">
       <div className="mb-4 grid place-items-center">{icon}</div>
-      <h2 className="text-[16px] font-semibold text-ink">{title}</h2>
-      <p className="mt-1.5 max-w-md text-[14px] leading-relaxed text-ink-2">{body}</p>
+      <h2 className="text-[16px] font-semibold text-foreground">{title}</h2>
+      <p className="mt-1.5 max-w-md text-[14px] leading-relaxed text-muted-foreground">{body}</p>
       {children}
     </div>
   );

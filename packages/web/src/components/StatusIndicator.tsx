@@ -16,7 +16,7 @@ export function StatusIndicator({ state, size = 12 }: { state: ServiceState; siz
     case 'pulse':
       return (
         <span
-          className="relative inline-flex items-center justify-center rounded-full animate-pip"
+          className="relative inline-flex items-center justify-center rounded-full animate-pulse"
           style={{ ...box, background: style.color }}
           aria-hidden
         />
@@ -34,7 +34,7 @@ export function StatusIndicator({ state, size = 12 }: { state: ServiceState; siz
     case 'spinner':
       return (
         <span className="relative inline-flex" style={box} aria-hidden>
-          <svg viewBox="0 0 16 16" width={size} height={size} className="animate-sweep">
+          <svg viewBox="0 0 16 16" width={size} height={size} className="animate-spin">
             <circle cx="8" cy="8" r="6" fill="none" stroke={style.color} strokeOpacity="0.25" strokeWidth="3" />
             <path
               d="M8 2a6 6 0 0 1 6 6"
@@ -77,7 +77,7 @@ export function StatusIndicator({ state, size = 12 }: { state: ServiceState; siz
     default:
       return (
         <span
-          className="inline-block rounded-full border-2 border-dashed animate-shimmer"
+          className="inline-block rounded-full border-2 border-dashed animate-pulse"
           style={{ ...box, borderColor: style.color }}
           aria-hidden
         />
@@ -119,7 +119,7 @@ export function StateDistribution({
 }) {
   const order: ServiceState[] = ['running', 'degraded', 'failed', 'starting', 'stopping', 'stopped', 'unknown'];
   return (
-    <div className={cn('flex h-1.5 w-full overflow-hidden rounded-full bg-surface-2', className)}>
+    <div className={cn('flex h-1.5 w-full overflow-hidden rounded-full bg-popover', className)}>
       {order.map((state) => {
         const count = counts.get(state) ?? 0;
         if (count === 0) return null;

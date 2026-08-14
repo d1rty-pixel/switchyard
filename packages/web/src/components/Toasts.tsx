@@ -27,24 +27,24 @@ const AUTO_DISMISS_MS: Record<ToastTone, number | null> = {
 
 const TONE_STYLE: Record<ToastTone, { ring: string; accent: string; icon: React.ReactNode }> = {
   success: {
-    ring: 'border-st-running/35',
-    accent: 'bg-st-running',
-    icon: <Check className="size-4 text-st-running" />,
+    ring: 'border-emerald-500/35',
+    accent: 'bg-emerald-500',
+    icon: <Check className="size-4 text-emerald-500" />,
   },
   error: {
-    ring: 'border-st-failed/40',
-    accent: 'bg-st-failed',
-    icon: <AlertTriangle className="size-4 text-st-failed" />,
+    ring: 'border-red-500/40',
+    accent: 'bg-red-500',
+    icon: <AlertTriangle className="size-4 text-red-500" />,
   },
   warning: {
-    ring: 'border-st-degraded/40',
-    accent: 'bg-st-degraded',
-    icon: <AlertTriangle className="size-4 text-st-degraded" />,
+    ring: 'border-amber-500/40',
+    accent: 'bg-amber-500',
+    icon: <AlertTriangle className="size-4 text-amber-500" />,
   },
   info: {
-    ring: 'border-route/35',
-    accent: 'bg-route',
-    icon: <Info className="size-4 text-route" />,
+    ring: 'border-secondary/35',
+    accent: 'bg-secondary',
+    icon: <Info className="size-4 text-secondary" />,
   },
 };
 
@@ -85,7 +85,7 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   return (
     <div
       className={cn(
-        'glass pointer-events-auto relative w-[26rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl shadow-[0_18px_40px_-18px_rgba(0,0,0,0.9)]',
+        'pointer-events-auto relative w-[26rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border bg-popover shadow-lg',
         tone.ring,
       )}
     >
@@ -93,21 +93,21 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <div className="flex items-start gap-3 p-3 pl-4">
         <div className="mt-0.5 shrink-0">{tone.icon}</div>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-medium text-ink">{toast.title}</p>
-          {toast.message && <p className="mt-0.5 break-words text-[13px] leading-relaxed text-ink-2">{toast.message}</p>}
+          <p className="text-[14px] font-medium text-foreground">{toast.title}</p>
+          {toast.message && <p className="mt-0.5 break-words text-[13px] leading-relaxed text-muted-foreground">{toast.message}</p>}
           {toast.details && (
             <>
               <Button
                 variant="ghost"
                 size="xs"
                 onClick={() => setExpanded((value) => !value)}
-                className="mt-1.5 -ml-1 text-[12px] text-ink-3 hover:bg-transparent hover:text-signal"
+                className="mt-1.5 -ml-1 text-[12px] text-muted-foreground hover:bg-transparent hover:text-primary"
               >
                 <ChevronDown className={cn('transition-transform', expanded && 'rotate-180')} />
                 {expanded ? 'Hide output' : 'Show output'}
               </Button>
               {expanded && (
-                <pre className="mono animate-fade-in mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-base/70 p-2 text-faint">
+                <pre className="font-mono animate-in fade-in mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-muted p-2 text-muted-foreground">
                   {toast.details}
                 </pre>
               )}
@@ -119,7 +119,7 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
           size="icon-xs"
           onClick={onDismiss}
           aria-label="Dismiss notification"
-          className="text-faint hover:text-ink"
+          className="text-muted-foreground hover:text-foreground"
         >
           <X />
         </Button>

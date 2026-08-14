@@ -36,7 +36,7 @@ export interface FilterBarProps {
 }
 
 /** Unselected chip, shared by the state and provider toggles. */
-const IDLE_CHIP = 'border-line-soft bg-surface/40 text-ink-3 hover:text-ink';
+const IDLE_CHIP = 'border-border bg-card/40 text-muted-foreground hover:text-foreground';
 
 export function FilterBar({
   filters,
@@ -57,7 +57,7 @@ export function FilterBar({
         type="single"
         value={filters.group ?? 'all'}
         onValueChange={(value) => onChange({ ...filters, group: !value || value === 'all' ? null : value })}
-        className="flex-wrap gap-1 rounded-xl border border-line bg-surface/50 p-1"
+        className="flex-wrap gap-1 rounded-xl border border-border bg-card/50 p-1"
       >
         <Pill value="all">
           All
@@ -101,7 +101,7 @@ export function FilterBar({
             >
               <StatusIndicator state={state} size={8} />
               {style.label}
-              <span className="num text-[11.5px] opacity-70">{count}</span>
+              <span className="tabular-nums text-[11.5px] opacity-70">{count}</span>
             </ToggleGroupItem>
           );
         })}
@@ -121,7 +121,7 @@ export function FilterBar({
               value={entry.type}
               className={cn(
                 'h-auto rounded-lg border px-2 py-1 text-[12.5px]',
-                filters.types.includes(entry.type) ? 'border-route/40 bg-route/12 text-route' : IDLE_CHIP,
+                filters.types.includes(entry.type) ? 'border-secondary/40 bg-secondary/12 text-secondary' : IDLE_CHIP,
               )}
             >
               {entry.label}
@@ -136,7 +136,7 @@ export function FilterBar({
             variant="outline"
             size="sm"
             onClick={() => onChange({ ...filters, group: null, states: [], types: [] })}
-            className="rounded-lg border-line-soft bg-transparent text-[12.5px] text-ink-3 hover:text-ink"
+            className="rounded-lg border-border bg-transparent text-[12.5px] text-muted-foreground hover:text-foreground"
           >
             <FilterX />
             Clear
@@ -147,12 +147,12 @@ export function FilterBar({
           <SelectTrigger
             size="sm"
             aria-label="Sort by"
-            className="h-auto gap-1.5 rounded-lg border-line bg-surface/50 px-2 py-1 text-[12.5px] text-ink-2"
+            className="h-auto gap-1.5 rounded-lg border-border bg-card/50 px-2 py-1 text-[12.5px] text-muted-foreground"
           >
-            <ArrowDownUp className="size-3.5 text-ink-3" />
+            <ArrowDownUp className="size-3.5 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="glass bg-surface-2/97">
+          <SelectContent position="popper" sideOffset={4}>
             {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
               <SelectItem key={mode} value={mode}>
                 {SORT_LABELS[mode]}
@@ -161,7 +161,7 @@ export function FilterBar({
           </SelectContent>
         </Select>
 
-        <span className="num text-[12px] text-faint">
+        <span className="tabular-nums text-[12px] text-muted-foreground">
           {visible === total ? `${total} services` : `${visible} of ${total}`}
         </span>
       </div>
@@ -174,7 +174,7 @@ function Pill({ value, title, children }: { value: string; title?: string; child
     <ToggleGroupItem
       value={value}
       title={title}
-      className="h-auto gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1 text-[13px] font-medium text-ink-3 hover:text-ink data-[state=on]:bg-surface-3 data-[state=on]:text-ink data-[state=on]:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+      className="h-auto gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1 text-[13px] font-medium text-muted-foreground hover:text-foreground data-[state=on]:bg-secondary data-[state=on]:text-foreground data-[state=on]:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
     >
       {children}
     </ToggleGroupItem>
@@ -182,5 +182,5 @@ function Pill({ value, title, children }: { value: string; title?: string; child
 }
 
 function Count({ value }: { value: number }) {
-  return <span className="num text-[11.5px] text-faint">{value}</span>;
+  return <span className="tabular-nums text-[11.5px] text-muted-foreground">{value}</span>;
 }

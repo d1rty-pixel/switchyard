@@ -19,14 +19,14 @@ import type { Metric, PortInfo, ServiceSummary, UrlInfo } from '@/lib/types';
 /** Squared-off chip geometry, as opposed to the pill shape Badge defaults to. */
 const CHIP = 'rounded-md border px-1.5 text-[12px] font-normal';
 
-export function ProviderChip({ service }: { service: ServiceSummary }) {
+export function ProviderChip({ service, className }: { service: ServiceSummary; className?: string }) {
   return (
-    <span className="flex items-center gap-1.5 text-[12px] text-faint">
-      <span className="rounded border border-line-soft bg-surface-2/60 px-1.5 py-px font-medium text-ink-3">
+    <span className={cn('flex items-center gap-1.5 text-[12px] text-muted-foreground', className)}>
+      <span className="rounded border border-border bg-popover/60 px-1.5 py-px font-medium text-muted-foreground">
         {service.providerLabel}
       </span>
       {service.children && (
-        <span className="num">
+        <span className="tabular-nums">
           {service.children.running}/{service.children.total} containers
         </span>
       )}
@@ -39,7 +39,7 @@ export function PortChip({ port, className }: { port: PortInfo; className?: stri
     <Badge
       variant="outline"
       title={port.label ? `${port.label} (${port.protocol})` : port.protocol}
-      className={cn(CHIP, 'num border-route/25 bg-route/10 text-route', className)}
+      className={cn(CHIP, 'tabular-nums border-secondary/25 bg-secondary/10 text-secondary', className)}
     >
       <Radio />
       {port.hostPort ?? port.port}
@@ -52,7 +52,7 @@ export function EndpointLink({ url, className }: { url: UrlInfo; className?: str
     <Badge
       asChild
       variant="outline"
-      className={cn(CHIP, 'border-line-soft bg-surface-2/50 text-ink-2 hover:border-signal/40 hover:text-signal', className)}
+      className={cn(CHIP, 'border-border bg-popover/50 text-muted-foreground hover:border-primary/40 hover:text-primary', className)}
     >
       <a href={url.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
         {url.label}
@@ -81,11 +81,11 @@ export function ResourceChip({
           ? `${entry.label}: ${formatResource(entry.value, entry.unit)} — ${entry.alert.severity} threshold ${formatResource(entry.alert.threshold, entry.unit)}`
           : `${entry.label} · ${attribution ?? ''}`
       }
-      className={cn(CHIP, entry.alert ? tone.chip : 'border-line-soft bg-surface-2/50 text-ink-2', className)}
+      className={cn(CHIP, entry.alert ? tone.chip : 'border-border bg-popover/50 text-muted-foreground', className)}
     >
       {entry.metric === 'cpu' ? <Gauge className="opacity-70" /> : <Activity className="opacity-70" />}
-      <span className="text-faint">{entry.short}</span>
-      <span className="num font-medium">{formatResource(entry.value, entry.unit)}</span>
+      <span className="text-muted-foreground">{entry.short}</span>
+      <span className="tabular-nums font-medium">{formatResource(entry.value, entry.unit)}</span>
     </Badge>
   );
 }
@@ -96,10 +96,10 @@ export function MetricChip({ metric, className }: { metric: Metric; className?: 
     <Badge
       variant="outline"
       title={metric.label}
-      className={cn(CHIP, 'border-line-soft bg-surface-2/50', toneStyle(metric.tone).text, className)}
+      className={cn(CHIP, 'border-border bg-popover/50', toneStyle(metric.tone).text, className)}
     >
-      <span className="text-faint">{metric.label}</span>
-      <span className="num font-medium">{formatMetric(metric)}</span>
+      <span className="text-muted-foreground">{metric.label}</span>
+      <span className="tabular-nums font-medium">{formatMetric(metric)}</span>
     </Badge>
   );
 }
@@ -120,10 +120,10 @@ export function StateRail({ color, dimmed, className }: { color: string; dimmed:
 
 export function UptimeLabel({ service }: { service: ServiceSummary }) {
   const uptime = formatUptime(service.since);
-  if (!uptime) return <span className="text-faint">—</span>;
+  if (!uptime) return <span className="text-muted-foreground">—</span>;
   return (
-    <span className="num flex items-center gap-1" title={`Since ${service.since}`}>
-      <Clock3 className="size-3 text-faint" />
+    <span className="tabular-nums flex items-center gap-1" title={`Since ${service.since}`}>
+      <Clock3 className="size-3 text-muted-foreground" />
       {uptime}
     </span>
   );
@@ -133,7 +133,7 @@ export function UptimeLabel({ service }: { service: ServiceSummary }) {
 export function ActivityLine({ service, className }: { service: ServiceSummary; className?: string }) {
   if (service.busy) {
     return (
-      <span className={cn('flex items-center gap-1.5 text-signal', className)}>
+      <span className={cn('flex items-center gap-1.5 text-primary', className)}>
         <StatusIndicator state={service.state} size={9} />
         {service.busy.label} running…
       </span>
@@ -164,7 +164,7 @@ export function LastCheckedInfo({
           className={cn(
             'hidden items-center gap-1',
             actionClassName ?? 'sm:flex',
-            service.lastAction.ok ? 'text-faint' : 'text-st-failed/80',
+            service.lastAction.ok ? 'text-muted-foreground' : 'text-red-500/80',
           )}
         >
           <ScrollText className="size-3" />

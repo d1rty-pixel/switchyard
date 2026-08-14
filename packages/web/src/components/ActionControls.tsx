@@ -11,11 +11,10 @@ import { actionIcon } from '@/lib/icons';
 import type { ActionDescriptor, ServiceSummary } from '@/lib/types';
 
 const KIND_CLASS: Record<ActionDescriptor['kind'], string> = {
-  primary:
-    'bg-signal/15 text-signal border-signal/30 hover:bg-signal/25 hover:border-signal/50 shadow-[0_0_18px_-8px_var(--color-signal)]',
-  secondary: 'bg-surface-2 text-ink-2 border-line hover:bg-surface-3 hover:text-ink',
-  danger: 'bg-st-failed/10 text-st-failed border-st-failed/30 hover:bg-st-failed/20 hover:border-st-failed/50',
-  utility: 'bg-transparent text-ink-3 border-line-soft hover:bg-surface-2 hover:text-ink-2',
+  primary: 'bg-primary/15 text-primary border-primary/30 hover:bg-primary/25 hover:border-primary/50',
+  secondary: 'bg-popover text-muted-foreground border-border hover:bg-secondary hover:text-foreground',
+  danger: 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50',
+  utility: 'bg-transparent text-muted-foreground border-border hover:bg-popover hover:text-muted-foreground',
 };
 
 export interface ActionButtonProps {
@@ -24,7 +23,7 @@ export interface ActionButtonProps {
   disabled: boolean;
   disabledReason?: string;
   onRun: () => void;
-  /** Tighter padding and no "slow" hint — used by the table view's rows. */
+  /** Tighter padding — used by the table view's rows. */
   compact?: boolean;
 }
 
@@ -53,9 +52,6 @@ export function ActionButton({
     >
       {running ? <Loader2 className="animate-spin" /> : Icon ? <Icon /> : null}
       {action.label}
-      {action.slow && !running && !compact && (
-        <span className="text-[10px] uppercase tracking-wider opacity-60">slow</span>
-      )}
     </Button>
   );
 }
@@ -183,16 +179,14 @@ function OverflowMenu({
           variant="outline"
           size="sm"
           aria-label="More actions"
-          className="rounded-lg border-line-soft bg-transparent text-ink-3 hover:bg-surface-2 hover:text-ink"
+          className="rounded-lg border-border bg-transparent text-muted-foreground hover:bg-popover hover:text-foreground"
         >
           <MoreHorizontal />
         </Button>
       </DropdownMenuTrigger>
-      {/* Nearly opaque: this floats over other cards, so the text behind it
-          must not bleed through. */}
       <DropdownMenuContent
         align="end"
-        className="glass max-h-[min(20rem,60vh)] w-[15.5rem] overflow-y-auto bg-surface-2/97 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.95)]"
+        className="max-h-[min(20rem,60vh)] w-[15.5rem] overflow-y-auto"
       >
         {actions.map((action) => {
           const Icon = actionIcon(action.icon);
@@ -204,21 +198,16 @@ function OverflowMenu({
               disabled={locked}
               title={reason ?? action.description}
               onSelect={() => onRun(action)}
-              className="items-start gap-2.5 py-2 focus:bg-surface-3"
+              className="gap-2.5 py-2"
             >
               {busyActionId === action.id ? (
-                <Loader2 className="mt-0.5 animate-spin text-signal" />
+                <Loader2 className="animate-spin text-primary" />
               ) : Icon ? (
-                <Icon className="mt-0.5 text-ink-3" />
+                <Icon className="text-muted-foreground" />
               ) : (
-                <span className="mt-0.5 size-3.5" />
+                <span className="size-3.5" />
               )}
-              <span className="min-w-0">
-                <span className="block text-[13px] font-medium text-ink">{action.label}</span>
-                {action.description && (
-                  <span className="mono block truncate text-faint">{action.description}</span>
-                )}
-              </span>
+              <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{action.label}</span>
             </DropdownMenuItem>
           );
         })}

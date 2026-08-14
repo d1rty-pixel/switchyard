@@ -392,7 +392,7 @@ export default function App() {
       />
 
       {all.length > 0 && (
-        <div className="border-b border-line/50 bg-base-2/40">
+        <div className="border-b border-border/50 bg-muted/40">
           <FilterBar
             filters={filters}
             onChange={setFilters}
@@ -468,7 +468,7 @@ export default function App() {
           ))}
       </main>
 
-      {meta.data && <DisabledServices services={meta.data.disabledServices} />}
+      {meta.data && <DisabledServices services={meta.data.disabledServices} providers={meta.data.providers} />}
 
       <ServiceDrawer serviceId={openId} onClose={() => setOpenId(null)} onRunAction={requestAction} />
 
