@@ -27,24 +27,24 @@ const AUTO_DISMISS_MS: Record<ToastTone, number | null> = {
 
 const TONE_STYLE: Record<ToastTone, { ring: string; accent: string; icon: React.ReactNode }> = {
   success: {
-    ring: 'border-emerald-500/35',
-    accent: 'bg-emerald-500',
-    icon: <Check className="size-4 text-emerald-500" />,
+    ring: 'border-good/35',
+    accent: 'bg-good',
+    icon: <Check className="size-4 text-good" />,
   },
   error: {
-    ring: 'border-red-500/40',
-    accent: 'bg-red-500',
-    icon: <AlertTriangle className="size-4 text-red-500" />,
+    ring: 'border-bad/40',
+    accent: 'bg-bad',
+    icon: <AlertTriangle className="size-4 text-bad" />,
   },
   warning: {
-    ring: 'border-amber-500/40',
-    accent: 'bg-amber-500',
-    icon: <AlertTriangle className="size-4 text-amber-500" />,
+    ring: 'border-warn/40',
+    accent: 'bg-warn',
+    icon: <AlertTriangle className="size-4 text-warn" />,
   },
   info: {
-    ring: 'border-secondary/35',
-    accent: 'bg-secondary',
-    icon: <Info className="size-4 text-secondary" />,
+    ring: 'border-info/35',
+    accent: 'bg-info',
+    icon: <Info className="size-4 text-info" />,
   },
 };
 
@@ -85,7 +85,7 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   return (
     <div
       className={cn(
-        'pointer-events-auto relative w-[26rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border bg-popover shadow-lg',
+        'pointer-events-auto relative w-[26rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border bg-muted shadow-lg',
         tone.ring,
       )}
     >

@@ -1,7 +1,9 @@
 import { cn } from '@/lib/utils';
 
-// Brand colours for the mark itself — fixed, not theme tokens, so the logo
-// keeps its identity regardless of light/dark mode or theme accent.
+// Brand colours for the mark itself — fixed, not theme tokens, so the logo keeps
+// its identity regardless of light/dark mode. The mark sits on its own dark
+// plate, so it needs no per-theme variant; the wordmark sits on the page
+// background and uses the `brand` token instead, which is darkened for light.
 const BRAND_TEAL = '#2ee6c5';
 const BRAND_INDIGO = '#7c8cff';
 
@@ -68,7 +70,7 @@ export function Logo({ className, animated = true }: { className?: string; anima
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn('font-semibold tracking-tight text-foreground', className)}>
-      Switch<span style={{ color: BRAND_TEAL }}>yard</span>
+      Switch<span className="text-brand">yard</span>
     </span>
   );
 }

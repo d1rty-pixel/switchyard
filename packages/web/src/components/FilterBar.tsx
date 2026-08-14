@@ -121,7 +121,7 @@ export function FilterBar({
               value={entry.type}
               className={cn(
                 'h-auto rounded-lg border px-2 py-1 text-[12.5px]',
-                filters.types.includes(entry.type) ? 'border-secondary/40 bg-secondary/12 text-secondary' : IDLE_CHIP,
+                filters.types.includes(entry.type) ? 'border-border bg-secondary text-secondary-foreground' : IDLE_CHIP,
               )}
             >
               {entry.label}

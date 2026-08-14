@@ -79,7 +79,7 @@ export function ServiceDrawer({
         // uses, or its own `sm:max-w-sm` is never displaced.
         className={cn(
           'gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[min(84rem,96vw)]',
-          gpu ? 'shadow-[-30px_0_80px_-40px_rgba(0,0,0,1)]' : 'shadow-[-8px_0_16px_-8px_rgba(0,0,0,0.6)]',
+          gpu ? 'shadow-[-30px_0_80px_-40px_var(--panel-shadow)]' : 'shadow-[-8px_0_16px_-8px_var(--panel-shadow)]',
         )}
       >
         {detail.isPending && (
@@ -95,7 +95,7 @@ export function ServiceDrawer({
           <>
             <SheetTitle className="sr-only">Service details unavailable</SheetTitle>
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-              <AlertTriangle className="size-6 text-red-500" />
+              <AlertTriangle className="size-6 text-bad" />
               <p className="text-[14px] text-foreground">Could not load this service</p>
               <p className="font-mono text-muted-foreground">{(detail.error as Error).message}</p>
               <Button variant="outline" onClick={() => detail.refetch()}>
@@ -140,7 +140,7 @@ export function ServiceDrawer({
                       <Icon className="size-3.5" />
                       {label}
                       {id === 'history' && service.history.length > 0 && (
-                        <span className="tabular-nums rounded bg-popover px-1 text-[11px] text-muted-foreground">
+                        <span className="tabular-nums rounded bg-muted px-1 text-[11px] text-muted-foreground">
                           {service.history.length}
                         </span>
                       )}
@@ -253,7 +253,7 @@ function DrawerHeader({
             onClick={onRefresh}
             aria-label="Re-check status"
             title="Re-check status now"
-            className="border-border bg-popover/60 text-muted-foreground hover:text-primary"
+            className="border-border bg-muted/60 text-muted-foreground hover:text-primary"
           >
             <RefreshCw className={cn(refreshing && 'animate-spin text-primary')} />
           </Button>
@@ -263,7 +263,7 @@ function DrawerHeader({
               size="icon-sm"
               onClick={onClose}
               aria-label="Close details"
-              className="border-border bg-popover/60 text-muted-foreground hover:text-foreground"
+              className="border-border bg-muted/60 text-muted-foreground hover:text-foreground"
             >
               <X />
             </Button>
@@ -290,7 +290,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
     <ScrollArea className="h-full">
     <div className="p-4">
       {(service.statusSummary || service.statusDetail) && (
-        <section className="mb-4 rounded-xl border border-border bg-popover/40 p-3">
+        <section className="mb-4 rounded-xl border border-border bg-muted/40 p-3">
           <p className="text-[13.5px] text-foreground">{service.statusSummary ?? stateStyle(service.state).hint}</p>
           {service.statusDetail && <p className="font-mono mt-1.5 text-muted-foreground">{service.statusDetail}</p>}
         </section>
@@ -319,7 +319,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
             {service.metrics.map((metric) => (
               <div
                 key={metric.label}
-                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-popover/40 px-2.5 py-1.5"
+                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5"
               >
                 <dt className="shrink-0 text-[12.5px] text-muted-foreground">{metric.label}</dt>
                 <dd
@@ -357,12 +357,12 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
             {service.ports.map((port) => (
               <span
                 key={`${port.protocol}-${port.hostPort ?? port.port}`}
-                className="tabular-nums inline-flex items-center gap-1.5 rounded-lg border border-secondary/25 bg-secondary/10 px-2.5 py-1.5 text-[13px] text-secondary"
+                className="tabular-nums inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-[13px] text-foreground"
               >
-                <Radio className="size-3" />
+                <Radio className="size-3 text-muted-foreground" />
                 {port.hostPort ? `${port.hostPort} → ${port.port}` : port.port}
-                <span className="text-[11px] uppercase text-secondary/60">{port.protocol}</span>
-                {port.label && <span className="text-secondary/70">{port.label}</span>}
+                <span className="text-[11px] uppercase text-muted-foreground">{port.protocol}</span>
+                {port.label && <span className="text-muted-foreground">{port.label}</span>}
               </span>
             ))}
           </div>
@@ -410,7 +410,7 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
             {entries.map((entry) => (
               <div
                 key={entry.metric}
-                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-popover/40 px-2.5 py-1.5"
+                className="flex items-baseline justify-between gap-3 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5"
               >
                 <dt className="shrink-0 text-[12.5px] text-muted-foreground">{entry.label}</dt>
                 <dd
@@ -444,7 +444,7 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
           {sample.children.map((child) => (
             <li
               key={child.id}
-              className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-lg border border-border bg-popover/30 px-2.5 py-1.5"
+              className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5"
             >
               <span className="font-mono min-w-0 flex-1 truncate text-muted-foreground">{child.name}</span>
               {resourceEntries(child).map((entry) => (
@@ -480,15 +480,15 @@ function AlertRow({ alert }: { alert: ResourceAlert }) {
 /* Container health is the provider's own vocabulary, not a service state — it
    maps onto the same status colours but has no entry in STATE_STYLES. */
 const HEALTH_CHIP: Record<string, string> = {
-  healthy: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
-  unhealthy: 'border-red-500/30 bg-red-500/10 text-red-500',
-  starting: 'border-sky-500/30 bg-sky-500/10 text-sky-500',
+  healthy: 'border-good/30 bg-good/10 text-good',
+  unhealthy: 'border-bad/30 bg-bad/10 text-bad',
+  starting: 'border-info/30 bg-info/10 text-info',
 };
 
 function ChildRow({ child }: { child: ChildStatus }) {
   const style = stateStyle(child.state);
   return (
-    <li className="flex items-center gap-2.5 rounded-lg border border-border bg-popover/40 px-2.5 py-2">
+    <li className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-2.5 py-2">
       <StatusIndicator state={child.state} size={10} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13.5px] font-medium text-foreground">{child.name}</p>
@@ -506,7 +506,7 @@ function ChildRow({ child }: { child: ChildStatus }) {
         </Badge>
       )}
       {child.ports && child.ports.length > 0 && (
-        <span className="tabular-nums hidden shrink-0 gap-1 text-[11.5px] text-secondary sm:flex">
+        <span className="tabular-nums hidden shrink-0 gap-1 text-[11.5px] text-muted-foreground sm:flex">
           {child.ports.slice(0, 2).map((port) => port.hostPort ?? port.port).join(', ')}
         </span>
       )}
@@ -515,9 +515,9 @@ function ChildRow({ child }: { child: ChildStatus }) {
 }
 
 const HISTORY_DOT: Record<HistorySeverity, string> = {
-  info: 'bg-emerald-500',
-  warning: 'bg-amber-500',
-  error: 'bg-red-500',
+  info: 'bg-good',
+  warning: 'bg-warn',
+  error: 'bg-bad',
 };
 
 const HISTORY_KIND_LABEL: Record<HistoryKind, string> = {
@@ -604,7 +604,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
 
   if (!details) {
     return (
-      <div className="flex items-center gap-2.5 rounded-xl border border-border bg-popover/40 px-3 py-2.5">
+      <div className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3 py-2.5">
         {headline}
         <span className="shrink-0 text-[11.5px] text-muted-foreground">{HISTORY_KIND_LABEL[entry.kind]}</span>
       </div>
@@ -612,7 +612,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   }
 
   return (
-    <details className="group rounded-xl border border-border bg-popover/40 open:bg-popover/60">
+    <details className="group rounded-xl border border-border bg-muted/40 open:bg-muted/60">
       <summary className="flex cursor-pointer items-center gap-2.5 px-3 py-2.5">{headline}</summary>
       {details}
     </details>
@@ -634,8 +634,8 @@ function MonitoringTable({ monitoring }: { monitoring: ResolvedMonitoring }) {
               className={cn(
                 'h-auto px-1.5 py-0 text-[11px]',
                 monitoring.enabled
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
-                  : 'border-slate-500/30 bg-slate-500/10 text-slate-500',
+                  ? 'border-good/30 bg-good/10 text-good'
+                  : 'border-neutral/30 bg-neutral/10 text-neutral',
               )}
             >
               {monitoring.enabled ? 'enabled' : 'disabled'}
@@ -670,10 +670,10 @@ function MonitoringTable({ monitoring }: { monitoring: ResolvedMonitoring }) {
                     <TableCell className="px-2.5 py-1.5 text-[12.5px] text-foreground">
                       {RESOURCE_METRIC_INFO[metric].label}
                     </TableCell>
-                    <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-amber-500">
+                    <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-warn">
                       {threshold.warning !== undefined ? formatResource(threshold.warning, threshold.unit) : '—'}
                     </TableCell>
-                    <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-red-500">
+                    <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-bad">
                       {threshold.critical !== undefined ? formatResource(threshold.critical, threshold.unit) : '—'}
                     </TableCell>
                     <TableCell className="px-2.5 py-1.5 text-right text-[12.5px] tabular-nums text-muted-foreground">
@@ -720,7 +720,7 @@ function ConfigTab({ service }: { service: ServiceDetail }) {
           </p>
           <div className="flex flex-wrap gap-1.5">
             {service.envKeys.map((key) => (
-              <span key={key} className="font-mono rounded-md border border-border bg-popover/50 px-1.5 py-0.5 text-muted-foreground">
+              <span key={key} className="font-mono rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-muted-foreground">
                 {key}
               </span>
             ))}
@@ -782,8 +782,8 @@ function CommandOutputBlock({ output }: { output: NonNullable<ServiceDetail['las
         </ScrollArea>
       )}
       {output.stderr && (
-        <ScrollArea className="h-48 rounded-lg border border-amber-500/20 bg-amber-500/[0.05]">
-          <pre className="font-mono whitespace-pre-wrap break-all p-2 text-amber-500/90">{output.stderr}</pre>
+        <ScrollArea className="h-48 rounded-lg border border-warn/20 bg-warn/[0.05]">
+          <pre className="font-mono whitespace-pre-wrap break-all p-2 text-warn/90">{output.stderr}</pre>
         </ScrollArea>
       )}
     </div>

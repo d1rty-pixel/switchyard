@@ -46,7 +46,7 @@ export function ConfirmDialog({
               className={cn(
                 'border bg-transparent',
                 destructive
-                  ? 'border-red-500/30 bg-red-500/10 text-red-500'
+                  ? 'border-bad/30 bg-bad/10 text-bad'
                   : 'border-primary/30 bg-primary/10 text-primary',
               )}
             >
@@ -73,7 +73,7 @@ export function ConfirmDialog({
               className={cn(
                 'border font-semibold',
                 destructive
-                  ? 'border-red-500/40 bg-red-500/15 text-red-500 hover:bg-red-500/25'
+                  ? 'border-bad/40 bg-bad/15 text-bad hover:bg-bad/25'
                   : 'border-primary/40 bg-primary/15 text-primary hover:bg-primary/25',
               )}
             >

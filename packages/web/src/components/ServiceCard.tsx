@@ -59,7 +59,7 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
           size="icon-lg"
           onClick={onOpen}
           aria-label={`Open ${service.name}`}
-          className="shrink-0 rounded-xl border-border bg-popover/80 text-muted-foreground hover:border-primary/40 hover:text-primary"
+          className="shrink-0 rounded-xl border-border bg-muted/80 text-muted-foreground hover:border-primary/40 hover:text-primary"
         >
           <Icon className="size-4.5" />
         </Button>
@@ -151,17 +151,17 @@ export function SkeletonCard({ delay = 0 }: { delay?: number }) {
       aria-hidden
     >
       <div className="flex items-start gap-3">
-        <div className="size-9 rounded-xl bg-popover" />
+        <div className="size-9 rounded-xl bg-muted" />
         <div className="flex-1 space-y-2">
-          <div className="h-3 w-1/3 rounded bg-popover" />
-          <div className="h-2.5 w-1/5 rounded bg-popover/70" />
-          <div className="h-2.5 w-4/5 rounded bg-popover/50" />
+          <div className="h-3 w-1/3 rounded bg-muted" />
+          <div className="h-2.5 w-1/5 rounded bg-muted/70" />
+          <div className="h-2.5 w-4/5 rounded bg-muted/50" />
         </div>
-        <div className="h-5 w-16 rounded-full bg-popover" />
+        <div className="h-5 w-16 rounded-full bg-muted" />
       </div>
       <div className="mt-4 flex gap-2">
-        <div className="h-6 w-16 rounded-lg bg-popover" />
-        <div className="h-6 w-16 rounded-lg bg-popover/70" />
+        <div className="h-6 w-16 rounded-lg bg-muted" />
+        <div className="h-6 w-16 rounded-lg bg-muted/70" />
       </div>
     </div>
   );

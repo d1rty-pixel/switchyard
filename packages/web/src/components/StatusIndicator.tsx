@@ -119,7 +119,7 @@ export function StateDistribution({
 }) {
   const order: ServiceState[] = ['running', 'degraded', 'failed', 'starting', 'stopping', 'stopped', 'unknown'];
   return (
-    <div className={cn('flex h-1.5 w-full overflow-hidden rounded-full bg-popover', className)}>
+    <div className={cn('flex h-1.5 w-full overflow-hidden rounded-full bg-muted', className)}>
       {order.map((state) => {
         const count = counts.get(state) ?? 0;
         if (count === 0) return null;

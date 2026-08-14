@@ -58,11 +58,11 @@ export function NoMatchesState({ onClear }: { onClear: () => void }) {
 export function ApiDownState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <Shell
-      icon={<Unplug className="size-8 text-red-500" />}
+      icon={<Unplug className="size-8 text-bad" />}
       title="Cannot reach the Switchyard API"
       body="The dashboard is loaded, but the backend did not answer."
     >
-      <p className="font-mono mt-1 max-w-lg break-words text-red-500/80">{message}</p>
+      <p className="font-mono mt-1 max-w-lg break-words text-bad/80">{message}</p>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <SignalButton onClick={onRetry}>Retry</SignalButton>
         <code className="font-mono rounded-lg border border-border bg-muted px-2.5 py-1.5 text-muted-foreground">npm start</code>
@@ -82,7 +82,7 @@ export function ConfigWarnings({ warnings }: { warnings: string[] }) {
         </span>
         <ul className="mt-1 space-y-0.5">
           {warnings.map((warning) => (
-            <li key={warning} className="font-mono break-words text-amber-500/80">
+            <li key={warning} className="font-mono break-words text-warn/80">
               {warning}
             </li>
           ))}
@@ -112,7 +112,7 @@ export function GpuAccelWarning({ dismissed, onDismiss }: { dismissed: boolean; 
             size="icon-xs"
             onClick={onDismiss}
             aria-label="Dismiss"
-            className="shrink-0 text-amber-500/70 hover:bg-amber-500/10 hover:text-amber-500"
+            className="shrink-0 text-warn/70 hover:bg-warn/10 hover:text-warn"
           >
             <X />
           </Button>
@@ -162,7 +162,7 @@ export function DisabledServices({
             >
               <PowerOff className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground">{service.name}</span>
-              <span className="shrink-0 rounded border border-border bg-popover/60 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
+              <span className="shrink-0 rounded border border-border bg-muted/60 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
                 {providerLabel.get(service.type) ?? service.type}
               </span>
             </li>

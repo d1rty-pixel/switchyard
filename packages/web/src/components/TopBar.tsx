@@ -106,7 +106,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
                 <X />
               </Button>
             ) : (
-              <kbd className="hidden rounded border border-border bg-popover px-1.5 py-px text-[11px] text-muted-foreground sm:block">
+              <kbd className="hidden rounded border border-border bg-muted px-1.5 py-px text-[11px] text-muted-foreground sm:block">
                 /
               </kbd>
             )}
@@ -119,7 +119,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
               <span className="tabular-nums">
                 <span className="font-semibold text-foreground">{running}</span>/{total} up
               </span>
-              {unhealthy > 0 && <span className="tabular-nums text-amber-500">{unhealthy} need attention</span>}
+              {unhealthy > 0 && <span className="tabular-nums text-warn">{unhealthy} need attention</span>}
             </div>
             <StateDistribution counts={counts} total={total} />
           </div>
@@ -141,7 +141,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
             className={cn(
               'rounded-xl border',
               notificationsEnabled
-                ? 'border-emerald-500/35 bg-emerald-500/12 text-emerald-500'
+                ? 'border-good/35 bg-good/12 text-good'
                 : 'border-border bg-card/60 text-muted-foreground hover:text-foreground',
             )}
           >
@@ -245,8 +245,8 @@ function StreamIndicator({ stream }: { stream: StreamState }) {
       className={cn(
         'h-auto gap-1.5 rounded-xl border px-2 py-1.5 text-[12px]',
         stream.connected
-          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
-          : 'border-amber-500/30 bg-amber-500/10 text-amber-500',
+          ? 'border-good/30 bg-good/10 text-good'
+          : 'border-warn/30 bg-warn/10 text-warn',
       )}
     >
       <RadioTower className={cn('size-3.5!', stream.connected && 'animate-pulse')} />

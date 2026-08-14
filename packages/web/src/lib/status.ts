@@ -2,7 +2,7 @@ import type { MetricTone, ServiceState } from './types';
 
 export interface StateStyle {
   label: string;
-  /** CSS colour reference for text/border/glow. */
+  /** CSS colour reference for text/border/glow — a theme token, not a literal. */
   color: string;
   /** Tailwind classes for the badge chip. */
   chip: string;
@@ -17,56 +17,56 @@ export interface StateStyle {
 export const STATE_STYLES: Record<ServiceState, StateStyle> = {
   running: {
     label: 'Running',
-    color: '#10b981',
-    chip: 'text-emerald-500 border-emerald-500/35 bg-emerald-500/10',
+    color: 'var(--tone-good)',
+    chip: 'text-good border-good/35 bg-good/10',
     hint: 'Service is up and reporting healthy.',
     shape: 'pulse',
     severity: 60,
   },
   starting: {
     label: 'Starting',
-    color: '#0ea5e9',
-    chip: 'text-sky-500 border-sky-500/35 bg-sky-500/10',
+    color: 'var(--tone-info)',
+    chip: 'text-info border-info/35 bg-info/10',
     hint: 'A start or restart is in progress.',
     shape: 'spinner',
     severity: 30,
   },
   stopping: {
     label: 'Stopping',
-    color: '#fbbf24',
-    chip: 'text-amber-400 border-amber-400/35 bg-amber-400/10',
+    color: 'var(--tone-warn)',
+    chip: 'text-warn border-warn/35 bg-warn/10',
     hint: 'A stop is in progress.',
     shape: 'spinner',
     severity: 31,
   },
   degraded: {
     label: 'Degraded',
-    color: '#f59e0b',
-    chip: 'text-amber-500 border-amber-500/35 bg-amber-500/10',
+    color: 'var(--tone-warn)',
+    chip: 'text-warn border-warn/35 bg-warn/10',
     hint: 'Up, but not fully healthy — check warnings.',
     shape: 'triangle',
     severity: 20,
   },
   failed: {
     label: 'Failed',
-    color: '#ef4444',
-    chip: 'text-red-500 border-red-500/35 bg-red-500/10',
+    color: 'var(--tone-bad)',
+    chip: 'text-bad border-bad/35 bg-bad/10',
     hint: 'The service exited with an error.',
     shape: 'cross',
     severity: 10,
   },
   stopped: {
     label: 'Stopped',
-    color: '#64748b',
-    chip: 'text-slate-500 border-slate-500/35 bg-slate-500/10',
+    color: 'var(--tone-neutral)',
+    chip: 'text-neutral border-neutral/35 bg-neutral/10',
     hint: 'Not running — this may be intentional.',
     shape: 'hollow',
     severity: 50,
   },
   unknown: {
     label: 'Unknown',
-    color: '#8b5cf6',
-    chip: 'text-violet-500 border-violet-500/35 bg-violet-500/10',
+    color: 'var(--tone-unknown)',
+    chip: 'text-unknown border-unknown/35 bg-unknown/10',
     hint: 'Status could not be determined.',
     shape: 'question',
     severity: 40,
@@ -105,10 +105,10 @@ export interface ToneStyle {
  * `alert.severity` at every call site.
  */
 export const TONE_STYLES: Record<MetricTone, ToneStyle> = {
-  default: { text: 'text-foreground', chip: 'border-border bg-popover/50 text-muted-foreground' },
-  good: { text: 'text-emerald-500', chip: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' },
-  warn: { text: 'text-amber-500', chip: 'border-amber-500/30 bg-amber-500/10 text-amber-500' },
-  bad: { text: 'text-red-500', chip: 'border-red-500/30 bg-red-500/10 text-red-500' },
+  default: { text: 'text-foreground', chip: 'border-border bg-muted/50 text-muted-foreground' },
+  good: { text: 'text-good', chip: 'border-good/30 bg-good/10 text-good' },
+  warn: { text: 'text-warn', chip: 'border-warn/30 bg-warn/10 text-warn' },
+  bad: { text: 'text-bad', chip: 'border-bad/30 bg-bad/10 text-bad' },
 };
 
 export function toneStyle(tone: MetricTone = 'default'): ToneStyle {

@@ -102,7 +102,7 @@ function ServiceRow({
 
   return (
     <TableRow
-      className={cn('group border-border/50 align-middle hover:bg-popover/40', service.busy && 'bg-primary/[0.04]')}
+      className={cn('group border-border/50 align-middle hover:bg-muted/40', service.busy && 'bg-primary/[0.04]')}
     >
       {/* Name cell carries the state rail, mirroring the card's left edge. */}
       <TableCell className="relative py-2.5 pl-5 pr-3">
@@ -118,7 +118,7 @@ function ServiceRow({
                 // The tooltip lives on a wrapper: a `title` attribute on an SVG
                 // element is not rendered as one.
                 <span
-                  className="shrink-0 text-amber-500"
+                  className="shrink-0 text-warn"
                   title={extraWarnings > 0 ? `${warning} (+${extraWarnings} more)` : warning}
                 >
                   <AlertTriangle className="size-3.5" />
@@ -216,11 +216,11 @@ export function SkeletonTable({ rows = 6 }: { rows?: number }) {
           className="animate-pulse flex items-center gap-3 border-b border-border/50 px-5 py-3 last:border-b-0"
           style={{ animationDelay: `${index * 90}ms` }}
         >
-          <div className="size-4 rounded bg-popover" />
-          <div className="h-3 w-40 rounded bg-popover" />
-          <div className="h-5 w-20 rounded-full bg-popover/70" />
-          <div className="h-2.5 flex-1 rounded bg-popover/40" />
-          <div className="h-6 w-16 rounded-lg bg-popover/70" />
+          <div className="size-4 rounded bg-muted" />
+          <div className="h-3 w-40 rounded bg-muted" />
+          <div className="h-5 w-20 rounded-full bg-muted/70" />
+          <div className="h-2.5 flex-1 rounded bg-muted/40" />
+          <div className="h-6 w-16 rounded-lg bg-muted/70" />
         </div>
       ))}
     </div>

@@ -12,9 +12,9 @@ import type { ActionDescriptor, ServiceSummary } from '@/lib/types';
 
 const KIND_CLASS: Record<ActionDescriptor['kind'], string> = {
   primary: 'bg-primary/15 text-primary border-primary/30 hover:bg-primary/25 hover:border-primary/50',
-  secondary: 'bg-popover text-muted-foreground border-border hover:bg-secondary hover:text-foreground',
-  danger: 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50',
-  utility: 'bg-transparent text-muted-foreground border-border hover:bg-popover hover:text-muted-foreground',
+  secondary: 'bg-muted text-muted-foreground border-border hover:bg-secondary hover:text-foreground',
+  danger: 'bg-bad/10 text-bad border-bad/30 hover:bg-bad/20 hover:border-bad/50',
+  utility: 'bg-transparent text-muted-foreground border-border hover:bg-muted hover:text-muted-foreground',
 };
 
 export interface ActionButtonProps {
@@ -179,7 +179,7 @@ function OverflowMenu({
           variant="outline"
           size="sm"
           aria-label="More actions"
-          className="rounded-lg border-border bg-transparent text-muted-foreground hover:bg-popover hover:text-foreground"
+          className="rounded-lg border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <MoreHorizontal />
         </Button>

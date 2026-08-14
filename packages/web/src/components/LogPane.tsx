@@ -113,7 +113,7 @@ export function LogPane({
           <span className="truncate">{query.data?.source ?? 'logs'}</span>
         </span>
 
-        <div className="ml-2 flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border bg-popover/60 px-2 py-1">
+        <div className="ml-2 flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2 py-1">
           <Search className="size-3.5 shrink-0 text-muted-foreground" />
           <Input
             value={filter}
@@ -146,7 +146,7 @@ export function LogPane({
                   'rounded-lg border text-[12px]',
                   containers.length > 0
                     ? 'border-primary/35 bg-primary/12 text-primary'
-                    : 'border-border bg-popover/60 text-muted-foreground hover:text-foreground',
+                    : 'border-border bg-muted/60 text-muted-foreground hover:text-foreground',
                 )}
               >
                 <Boxes />
@@ -180,7 +180,7 @@ export function LogPane({
           type="single"
           value={String(tail)}
           onValueChange={(value) => value && setTail(Number(value))}
-          className="rounded-lg border border-border bg-popover/60 p-0.5"
+          className="rounded-lg border border-border bg-muted/60 p-0.5"
         >
           {TAIL_OPTIONS.map((option) => (
             <ToggleGroupItem
@@ -227,7 +227,7 @@ export function LogPane({
         )}
 
         {query.isError && (
-          <p className="text-red-500">
+          <p className="text-bad">
             {(query.error as Error).message}
           </p>
         )}
@@ -243,8 +243,8 @@ export function LogPane({
               'group flex gap-3',
               !wrap && 'whitespace-pre',
               wrap && 'whitespace-pre-wrap break-words',
-              /\b(error|fatal|panic|failed|denied)\b/i.test(line) && 'text-red-500/90',
-              /\b(warn|warning|deprecated)\b/i.test(line) && 'text-amber-500/90',
+              /\b(error|fatal|panic|failed|denied)\b/i.test(line) && 'text-bad/90',
+              /\b(warn|warning|deprecated)\b/i.test(line) && 'text-warn/90',
             )}
           >
             <span className="tabular-nums w-8 shrink-0 select-none text-right text-muted-foreground/50">{index + 1}</span>
@@ -285,7 +285,7 @@ function IconToggle({
       aria-pressed={active}
       className={cn(
         'rounded-lg border',
-        active ? 'border-primary/35 bg-primary/12 text-primary' : 'border-border bg-popover/60 text-muted-foreground hover:text-foreground',
+        active ? 'border-primary/35 bg-primary/12 text-primary' : 'border-border bg-muted/60 text-muted-foreground hover:text-foreground',
       )}
     >
       {children}

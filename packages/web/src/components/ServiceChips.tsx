@@ -22,7 +22,7 @@ const CHIP = 'rounded-md border px-1.5 text-[12px] font-normal';
 export function ProviderChip({ service, className }: { service: ServiceSummary; className?: string }) {
   return (
     <span className={cn('flex items-center gap-1.5 text-[12px] text-muted-foreground', className)}>
-      <span className="rounded border border-border bg-popover/60 px-1.5 py-px font-medium text-muted-foreground">
+      <span className="rounded border border-border bg-muted/60 px-1.5 py-px font-medium text-muted-foreground">
         {service.providerLabel}
       </span>
       {service.children && (
@@ -39,7 +39,7 @@ export function PortChip({ port, className }: { port: PortInfo; className?: stri
     <Badge
       variant="outline"
       title={port.label ? `${port.label} (${port.protocol})` : port.protocol}
-      className={cn(CHIP, 'tabular-nums border-secondary/25 bg-secondary/10 text-secondary', className)}
+      className={cn(CHIP, 'tabular-nums border-border bg-muted/60 text-foreground', className)}
     >
       <Radio />
       {port.hostPort ?? port.port}
@@ -47,12 +47,22 @@ export function PortChip({ port, className }: { port: PortInfo; className?: stri
   );
 }
 
+/**
+  * The one chip in the set that navigates. Ports, metrics and provider labels
+  * are neutral facts, so a link that only differed by a hover colour was
+  * indistinguishable from them — it carries a link hue and an underline instead.
+  */
 export function EndpointLink({ url, className }: { url: UrlInfo; className?: string }) {
   return (
     <Badge
       asChild
       variant="outline"
-      className={cn(CHIP, 'border-border bg-popover/50 text-muted-foreground hover:border-primary/40 hover:text-primary', className)}
+      className={cn(
+        CHIP,
+        'border-link/35 bg-link/10 font-medium text-link underline decoration-link/40 decoration-dotted underline-offset-2',
+        'hover:border-link/60 hover:bg-link/15 hover:decoration-solid focus-visible:decoration-solid',
+        className,
+      )}
     >
       <a href={url.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
         {url.label}
@@ -81,7 +91,7 @@ export function ResourceChip({
           ? `${entry.label}: ${formatResource(entry.value, entry.unit)} — ${entry.alert.severity} threshold ${formatResource(entry.alert.threshold, entry.unit)}`
           : `${entry.label} · ${attribution ?? ''}`
       }
-      className={cn(CHIP, entry.alert ? tone.chip : 'border-border bg-popover/50 text-muted-foreground', className)}
+      className={cn(CHIP, entry.alert ? tone.chip : 'border-border bg-muted/50 text-muted-foreground', className)}
     >
       {entry.metric === 'cpu' ? <Gauge className="opacity-70" /> : <Activity className="opacity-70" />}
       <span className="text-muted-foreground">{entry.short}</span>
@@ -96,7 +106,7 @@ export function MetricChip({ metric, className }: { metric: Metric; className?: 
     <Badge
       variant="outline"
       title={metric.label}
-      className={cn(CHIP, 'border-border bg-popover/50', toneStyle(metric.tone).text, className)}
+      className={cn(CHIP, 'border-border bg-muted/50', toneStyle(metric.tone).text, className)}
     >
       <span className="text-muted-foreground">{metric.label}</span>
       <span className="tabular-nums font-medium">{formatMetric(metric)}</span>
@@ -164,7 +174,7 @@ export function LastCheckedInfo({
           className={cn(
             'hidden items-center gap-1',
             actionClassName ?? 'sm:flex',
-            service.lastAction.ok ? 'text-muted-foreground' : 'text-red-500/80',
+            service.lastAction.ok ? 'text-muted-foreground' : 'text-bad/80',
           )}
         >
           <ScrollText className="size-3" />

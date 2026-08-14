@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -24,9 +25,30 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+
+  /* Semantic tones. Every status colour in the app resolves through these, so a
+     tone reads the same wherever it turns up and only has to clear the contrast
+     bar once per theme. The light values are deliberately the dark end of each
+     hue ramp: a 500-level hue on white is around 2:1. */
+  --tone-good: #047857;
+  --tone-warn: #b45309;
+  --tone-bad: #b91c1c;
+  --tone-info: #0369a1;
+  --tone-neutral: #475569;
+  --tone-unknown: #6d28d9;
+  /* Links are the one thing that must not look like the neutral facts next to
+     them, so they get a hue of their own rather than reusing `primary` (which
+     is near-black in this palette). */
+  --tone-link: #1d4ed8;
+  /* Brand teal, darkened only far enough to be readable as text on white. */
+  --brand-accent: #0f766e;
+  /* Drop shadow behind the drawer. A near-opaque black reads as dirt on a light
+     page, so the alpha is per-theme rather than fixed. */
+  --panel-shadow: oklch(0 0 0 / 0.22);
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -45,6 +67,16 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+
+  --tone-good: #34d399;
+  --tone-warn: #fbbf24;
+  --tone-bad: #f87171;
+  --tone-info: #38bdf8;
+  --tone-neutral: #94a3b8;
+  --tone-unknown: #a78bfa;
+  --tone-link: #7dd3fc;
+  --brand-accent: #2ee6c5;
+  --panel-shadow: oklch(0 0 0 / 0.85);
 }
 
 @theme inline {
@@ -67,6 +99,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-good: var(--tone-good);
+  --color-warn: var(--tone-warn);
+  --color-bad: var(--tone-bad);
+  --color-info: var(--tone-info);
+  --color-neutral: var(--tone-neutral);
+  --color-unknown: var(--tone-unknown);
+  --color-link: var(--tone-link);
+  --color-brand: var(--brand-accent);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
