@@ -12,10 +12,21 @@ import {
   WrapText,
   X,
 } from 'lucide-react';
-import clsx from 'clsx';
-import { useLogs } from '../lib/hooks';
-import { formatClock } from '../lib/format';
-import type { ChildStatus } from '../lib/types';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { cn } from '@/lib/utils';
+import { useLogs } from '@/lib/hooks';
+import { formatClock } from '@/lib/format';
+import type { ChildStatus } from '@/lib/types';
 
 const TAIL_OPTIONS = [100, 200, 500, 1000];
 
@@ -45,7 +56,6 @@ export function LogPane({
   const [copied, setCopied] = useState(false);
   const [filter, setFilter] = useState('');
   const [containers, setContainers] = useState<string[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const pinnedToBottom = useRef(true);
 
@@ -105,100 +115,83 @@ export function LogPane({
 
         <div className="ml-2 flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-line bg-surface-2/60 px-2 py-1">
           <Search className="size-3.5 shrink-0 text-faint" />
-          <input
+          <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder="Filter lines…"
             aria-label="Filter log lines"
-            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink placeholder:text-faint focus:outline-none"
+            className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[12.5px] text-ink shadow-none placeholder:text-faint focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
           />
           {filter && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setFilter('')}
               aria-label="Clear filter"
-              className="rounded p-0.5 text-faint hover:text-ink"
+              className="text-faint hover:bg-transparent hover:text-ink"
             >
-              <X className="size-3.5" />
-            </button>
+              <X />
+            </Button>
           )}
         </div>
 
         {containerOptions.length > 1 && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setPickerOpen((value) => !value)}
-              aria-label="Filter by container"
-              className={clsx(
-                'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] transition-colors',
-                containers.length > 0
-                  ? 'border-signal/35 bg-signal/12 text-signal'
-                  : 'border-line bg-surface-2/60 text-muted hover:text-ink',
-              )}
-            >
-              <Boxes className="size-3.5" />
-              {containers.length > 0 ? `${containers.length} / ${containerOptions.length}` : 'All containers'}
-            </button>
-
-            {pickerOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setPickerOpen(false)} />
-                <div className="absolute right-0 z-20 mt-1.5 min-w-[180px] rounded-lg border border-line bg-surface-2 p-1 shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => setContainers([])}
-                    className="flex w-full items-center rounded-md px-2 py-1 text-left text-[12.5px] text-muted hover:bg-surface-3 hover:text-ink"
-                  >
-                    All containers
-                  </button>
-                  <div className="my-1 border-t border-line-soft" />
-                  {containerOptions.map((option) => {
-                    const checked = containers.includes(option.value);
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() =>
-                          setContainers((current) =>
-                            checked ? current.filter((value) => value !== option.value) : [...current, option.value],
-                          )
-                        }
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12.5px] text-ink hover:bg-surface-3"
-                      >
-                        <span
-                          className={clsx(
-                            'flex size-3.5 shrink-0 items-center justify-center rounded border',
-                            checked ? 'border-signal bg-signal text-white' : 'border-line',
-                          )}
-                        >
-                          {checked && <Check className="size-2.5" />}
-                        </span>
-                        <span className="min-w-0 truncate">{option.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Filter by container"
+                className={cn(
+                  'rounded-lg border text-[12px]',
+                  containers.length > 0
+                    ? 'border-signal/35 bg-signal/12 text-signal'
+                    : 'border-line bg-surface-2/60 text-ink-3 hover:text-ink',
+                )}
+              >
+                <Boxes />
+                {containers.length > 0 ? `${containers.length} / ${containerOptions.length}` : 'All containers'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[180px]">
+              <DropdownMenuItem onSelect={() => setContainers([])}>All containers</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {containerOptions.map((option) => (
+                <DropdownMenuCheckboxItem
+                  key={option.value}
+                  checked={containers.includes(option.value)}
+                  // Keep the menu open: picking containers is usually several
+                  // clicks, and a menu that closes on each one makes that work.
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={(checked) =>
+                    setContainers((current) =>
+                      checked ? [...current, option.value] : current.filter((value) => value !== option.value),
+                    )
+                  }
+                >
+                  <span className="min-w-0 truncate">{option.label}</span>
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
 
-        <div className="flex items-center rounded-lg border border-line bg-surface-2/60 p-0.5">
+        <ToggleGroup
+          type="single"
+          value={String(tail)}
+          onValueChange={(value) => value && setTail(Number(value))}
+          className="rounded-lg border border-line bg-surface-2/60 p-0.5"
+        >
           {TAIL_OPTIONS.map((option) => (
-            <button
+            <ToggleGroupItem
               key={option}
-              type="button"
-              onClick={() => setTail(option)}
-              className={clsx(
-                'num rounded-md px-1.5 py-0.5 text-[12px] transition-colors',
-                tail === option ? 'bg-surface-3 text-ink' : 'text-muted hover:text-ink',
-              )}
+              value={String(option)}
+              className="num h-auto rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-ink-3 hover:text-ink data-[state=on]:bg-surface-3 data-[state=on]:text-ink"
             >
               {option}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
 
         <IconToggle active={auto} onClick={() => setAuto((value) => !value)} label={auto ? 'Pause auto-refresh' : 'Resume auto-refresh'}>
           {auto ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
@@ -246,7 +239,7 @@ export function LogPane({
         {lines.map(({ line, index }) => (
           <div
             key={`${index}-${line.slice(0, 24)}`}
-            className={clsx(
+            className={cn(
               'group flex gap-3',
               !wrap && 'whitespace-pre',
               wrap && 'whitespace-pre-wrap break-words',
@@ -283,19 +276,19 @@ function IconToggle({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
+      size="icon-sm"
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={clsx(
-        'rounded-lg border p-1.5 transition-colors',
-        active
-          ? 'border-signal/35 bg-signal/12 text-signal'
-          : 'border-line bg-surface-2/60 text-muted hover:text-ink',
+      aria-pressed={active}
+      className={cn(
+        'rounded-lg border',
+        active ? 'border-signal/35 bg-signal/12 text-signal' : 'border-line bg-surface-2/60 text-ink-3 hover:text-ink',
       )}
     >
       {children}
-    </button>
+    </Button>
   );
 }

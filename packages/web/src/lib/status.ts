@@ -1,4 +1,4 @@
-import type { ServiceState } from './types';
+import type { MetricTone, ServiceState } from './types';
 
 export interface StateStyle {
   label: string;
@@ -90,4 +90,27 @@ export function stateStyle(state: ServiceState): StateStyle {
 /** True while an action is expected to change the state shortly. */
 export function isTransitional(state: ServiceState): boolean {
   return state === 'starting' || state === 'stopping';
+}
+
+export interface ToneStyle {
+  /** Foreground only — for a value sitting in an otherwise neutral row. */
+  text: string;
+  /** Border, tinted fill and text — for a chip or callout that stands alone. */
+  chip: string;
+}
+
+/**
+ * How a severity reads on screen. Card, table and drawer all show the same
+ * alert, so the colours are decided here rather than re-derived from
+ * `alert.severity` at every call site.
+ */
+export const TONE_STYLES: Record<MetricTone, ToneStyle> = {
+  default: { text: 'text-ink', chip: 'border-line-soft bg-surface-2/50 text-ink-2' },
+  good: { text: 'text-st-running', chip: 'border-st-running/30 bg-st-running/10 text-st-running' },
+  warn: { text: 'text-st-degraded', chip: 'border-st-degraded/30 bg-st-degraded/10 text-st-degraded' },
+  bad: { text: 'text-st-failed', chip: 'border-st-failed/30 bg-st-failed/10 text-st-failed' },
+};
+
+export function toneStyle(tone: MetricTone = 'default'): ToneStyle {
+  return TONE_STYLES[tone] ?? TONE_STYLES.default;
 }

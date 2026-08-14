@@ -1,11 +1,15 @@
 import { Bell, BellOff, LayoutGrid, Loader2, RadioTower, RefreshCw, Search, Table2, X } from 'lucide-react';
-import clsx from 'clsx';
 import { forwardRef } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { cn } from '@/lib/utils';
 import { Logo, Wordmark } from './Logo';
 import { StateDistribution } from './StatusIndicator';
-import { formatAgo } from '../lib/format';
-import type { StreamState } from '../lib/hooks';
-import type { ViewMode } from '../lib/types';
+import { formatAgo } from '@/lib/format';
+import type { StreamState } from '@/lib/hooks';
+import type { ViewMode } from '@/lib/types';
 
 export interface TopBarProps {
   total: number;
@@ -60,23 +64,24 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
         <div className="order-3 w-full min-w-0 sm:order-2 sm:w-auto sm:flex-1">
           <div className="flex items-center gap-2 rounded-xl border border-line bg-surface/60 px-2.5 py-1.5 transition-colors focus-within:border-signal/40">
             <Search className="size-3.5 shrink-0 text-faint" />
-            <input
+            <Input
               ref={searchRef}
               value={search}
               onChange={(event) => onSearch(event.target.value)}
               placeholder="Search services, tags, ports…"
               aria-label="Search services"
-              className="min-w-0 flex-1 bg-transparent text-[14px] text-ink placeholder:text-faint focus:outline-none"
+              className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[14px] text-ink shadow-none placeholder:text-faint focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
             />
             {search ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => onSearch('')}
                 aria-label="Clear search"
-                className="rounded p-0.5 text-faint hover:text-ink"
+                className="text-faint hover:bg-transparent hover:text-ink"
               >
-                <X className="size-3.5" />
-              </button>
+                <X />
+              </Button>
             ) : (
               <kbd className="hidden rounded border border-line bg-surface-2 px-1.5 py-px text-[11px] text-faint sm:block">
                 /
@@ -98,8 +103,9 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
 
           <StreamIndicator stream={stream} />
 
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="icon"
             onClick={onToggleNotifications}
             aria-pressed={notificationsEnabled}
             title={
@@ -107,34 +113,41 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
                 ? 'Desktop notifications on for every action and service change — click to turn off'
                 : 'Get a desktop notification when an action finishes or a service goes down'
             }
-            className={clsx(
-              'rounded-xl border p-1.5 transition-colors',
+            className={cn(
+              'rounded-xl border',
               notificationsEnabled
                 ? 'border-signal/35 bg-signal/12 text-signal'
-                : 'border-line bg-surface/60 text-muted hover:text-ink',
+                : 'border-line bg-surface/60 text-ink-3 hover:text-ink',
             )}
           >
-            {notificationsEnabled ? <Bell className="size-3.5" /> : <BellOff className="size-3.5" />}
-          </button>
+            {notificationsEnabled ? <Bell /> : <BellOff />}
+          </Button>
 
-          <div className="flex items-center rounded-xl border border-line bg-surface/60 p-0.5">
-            <IconButton active={view === 'cards'} onClick={() => onView('cards')} label="Card view">
+          <ToggleGroup
+            type="single"
+            value={view}
+            // Radix reports "" when the pressed item is toggled off; there is no
+            // third view, so that click keeps the current one.
+            onValueChange={(next) => next && onView(next as ViewMode)}
+            className="rounded-xl border border-line bg-surface/60 p-0.5"
+          >
+            <ViewToggle value="cards" label="Card view">
               <LayoutGrid className="size-3.5" />
-            </IconButton>
-            <IconButton active={view === 'table'} onClick={() => onView('table')} label="Table view">
+            </ViewToggle>
+            <ViewToggle value="table" label="Table view">
               <Table2 className="size-3.5" />
-            </IconButton>
-          </div>
+            </ViewToggle>
+          </ToggleGroup>
 
-          <button
-            type="button"
+          <Button
+            variant="outline"
             onClick={onReload}
             title="Reload switchyard.yaml from disk"
-            className="flex items-center gap-1.5 rounded-xl border border-line bg-surface/60 px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
+            className="rounded-xl border-line bg-surface/60 text-[13px] text-ink-2 hover:border-signal/40 hover:text-signal"
           >
-            {reloading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+            {reloading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             <span className="hidden sm:inline">Reload config</span>
-          </button>
+          </Button>
         </div>
       </div>
     </header>
@@ -143,7 +156,8 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
 
 function StreamIndicator({ stream }: { stream: StreamState }) {
   return (
-    <span
+    <Badge
+      variant="outline"
       title={
         stream.connected
           ? `Live event stream connected · last event ${formatAgo(
@@ -151,43 +165,28 @@ function StreamIndicator({ stream }: { stream: StreamState }) {
             )}`
           : 'Event stream disconnected — falling back to polling'
       }
-      className={clsx(
-        'flex items-center gap-1.5 rounded-xl border px-2 py-1.5 text-[12px] font-medium',
+      className={cn(
+        'h-auto gap-1.5 rounded-xl border px-2 py-1.5 text-[12px]',
         stream.connected
           ? 'border-signal/30 bg-signal/10 text-signal'
           : 'border-st-degraded/30 bg-st-degraded/10 text-st-degraded',
       )}
     >
-      <RadioTower className={clsx('size-3.5', stream.connected && 'animate-pip')} />
+      <RadioTower className={cn('size-3.5!', stream.connected && 'animate-pip')} />
       <span className="hidden sm:inline">{stream.connected ? 'live' : 'offline'}</span>
-    </span>
+    </Badge>
   );
 }
 
-function IconButton({
-  active,
-  onClick,
-  label,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
+function ViewToggle({ value, label, children }: { value: ViewMode; label: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <ToggleGroupItem
+      value={value}
       title={label}
       aria-label={label}
-      aria-pressed={active}
-      className={clsx(
-        'rounded-lg p-1.5 transition-colors',
-        active ? 'bg-surface-3 text-ink' : 'text-muted hover:text-ink',
-      )}
+      className="size-auto rounded-lg border-0 bg-transparent p-1.5 text-ink-3 hover:text-ink data-[state=on]:bg-surface-3 data-[state=on]:text-ink"
     >
       {children}
-    </button>
+    </ToggleGroupItem>
   );
 }

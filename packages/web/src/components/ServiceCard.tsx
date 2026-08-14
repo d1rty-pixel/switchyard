@@ -1,12 +1,26 @@
-import { Activity, AlertTriangle, ArrowUpRight, Clock3, Gauge, Radio, ScrollText } from 'lucide-react';
-import clsx from 'clsx';
-import { iconFor } from '../lib/icons';
-import { stateStyle } from '../lib/status';
-import { formatAgo, formatMetric, formatResource, formatUptime } from '../lib/format';
-import { resourceEntries } from '../lib/resources';
-import { StatusBadge, StatusIndicator } from './StatusIndicator';
+import { AlertTriangle, Gauge } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { iconFor } from '@/lib/icons';
+import { alertTone, resourceEntries } from '@/lib/resources';
+import { stateStyle } from '@/lib/status';
+import { formatResource } from '@/lib/format';
+import { Callout } from './Callout';
+import {
+  ActivityLine,
+  EndpointLink,
+  LastCheckedInfo,
+  MetricChip,
+  PortChip,
+  ProviderChip,
+  ResourceChip,
+  StateRail,
+  UptimeLabel,
+} from './ServiceChips';
+import { StatusBadge } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
-import type { ActionDescriptor, ServiceSummary } from '../lib/types';
+import type { ActionDescriptor, ServiceSummary } from '@/lib/types';
 
 export interface ServiceCardProps {
   service: ServiceSummary;
@@ -17,7 +31,6 @@ export interface ServiceCardProps {
 export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) {
   const style = stateStyle(service.state);
   const Icon = iconFor(service.icon, service.type);
-  const uptime = formatUptime(service.since);
   const primaryUrl = service.urls.find((url) => url.primary) ?? service.urls[0];
   const highlights = service.metrics.filter((metric) => metric.highlight).slice(0, 3);
   const warning = service.warnings[0] ?? service.errors[0];
@@ -29,38 +42,33 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
       )
     : [];
   const alert = service.alerts[0];
+  const extraProblems = service.warnings.length + service.errors.length - 1;
 
   return (
-    <article
-      className={clsx(
+    <Card
+      className={cn(
         'animate-rise',
         // No hover lift, shadow or surface change — the card stays put; the only
         // hover feedback is on the interactive elements themselves.
-        'card-sheen glass group relative flex flex-col rounded-[var(--radius-card)]',
+        // `overflow-visible`: the action menu is portalled, but the sheen and
+        // the state rail sit on the card's own edge.
+        'card-sheen glass group relative gap-0 overflow-visible rounded-[var(--radius-card)] bg-transparent py-0 ring-0',
         service.busy && 'border-signal/30',
       )}
-      style={{ ['--state' as string]: style.color }}
     >
       {/* State rail: the fastest signal when scanning a full grid. */}
-      <span
-        aria-hidden
-        className="absolute inset-y-3 left-0 w-[2px] rounded-full transition-colors duration-300"
-        style={{
-          background: style.color,
-          boxShadow: `0 0 14px -2px ${style.color}`,
-          opacity: service.state === 'stopped' ? 0.45 : 0.9,
-        }}
-      />
+      <StateRail color={style.color} dimmed={service.state === 'stopped'} className="inset-y-3" />
 
       <div className="flex items-start gap-3 p-4 pl-5">
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="icon-lg"
           onClick={onOpen}
-          className="grid size-9 shrink-0 place-items-center rounded-xl border border-line bg-surface-2/80 text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
           aria-label={`Open ${service.name}`}
+          className="shrink-0 rounded-xl border-line bg-surface-2/80 text-ink-2 hover:border-signal/40 hover:text-signal"
         >
           <Icon className="size-4.5" />
-        </button>
+        </Button>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -68,16 +76,7 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
               <h3 className="truncate text-[15px] font-semibold leading-tight text-ink transition-colors group-hover:text-signal">
                 {service.name}
               </h3>
-              <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-faint">
-                <span className="rounded border border-line-soft bg-surface-2/60 px-1.5 py-px font-medium text-muted">
-                  {service.providerLabel}
-                </span>
-                {service.children && (
-                  <span className="num">
-                    {service.children.running}/{service.children.total} containers
-                  </span>
-                )}
-              </p>
+              <ProviderChip service={service} />
             </button>
             <StatusBadge state={service.state} />
           </div>
@@ -86,157 +85,67 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
             <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-ink-2">{service.description}</p>
           )}
 
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
-            {service.busy ? (
-              <span className="flex items-center gap-1.5 text-signal">
-                <StatusIndicator state={service.state} size={9} />
-                {service.busy.label} running…
-              </span>
-            ) : (
-              service.statusSummary && (
-                <span className="min-w-0 truncate" title={service.statusSummary}>
-                  {service.statusSummary}
-                </span>
-              )
-            )}
-            {uptime && (
-              <span className="num flex items-center gap-1" title={`Since ${service.since}`}>
-                <Clock3 className="size-3 text-faint" />
-                {uptime}
-              </span>
-            )}
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-3">
+            <ActivityLine service={service} />
+            {service.since && <UptimeLabel service={service} />}
           </p>
         </div>
       </div>
 
       {(highlights.length > 0 || resources.length > 0 || service.ports.length > 0 || primaryUrl) && (
-        <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pl-5">
+        <CardContent className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pl-5">
           {resources.map((entry) => (
-            <span
-              key={entry.metric}
-              title={
-                entry.alert
-                  ? `${entry.label}: ${formatResource(entry.value, entry.unit)} — ${entry.alert.severity} threshold ${formatResource(entry.alert.threshold, entry.unit)}`
-                  : `${entry.label} · ${service.resources?.attribution ?? ''}`
-              }
-              className={clsx(
-                'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[12px]',
-                entry.alert?.severity === 'critical'
-                  ? 'border-st-failed/30 bg-st-failed/10 text-st-failed'
-                  : entry.alert
-                    ? 'border-st-degraded/30 bg-st-degraded/10 text-st-degraded'
-                    : 'border-line-soft bg-surface-2/50 text-ink-2',
-              )}
-            >
-              {entry.metric === 'cpu' ? <Gauge className="size-3 opacity-70" /> : <Activity className="size-3 opacity-70" />}
-              <span className="text-faint">{entry.short}</span>
-              <span className="num font-medium">{formatResource(entry.value, entry.unit)}</span>
-            </span>
+            <ResourceChip key={entry.metric} entry={entry} attribution={service.resources?.attribution} />
           ))}
-
           {highlights.map((metric) => (
-            <span
-              key={metric.label}
-              title={metric.label}
-              className={clsx(
-                'inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-[12px]',
-                metric.tone === 'good' && 'text-st-running/90',
-                metric.tone === 'warn' && 'text-st-degraded/90',
-                metric.tone === 'bad' && 'text-st-failed/90',
-                (!metric.tone || metric.tone === 'default') && 'text-ink-2',
-              )}
-            >
-              <span className="text-faint">{metric.label}</span>
-              <span className="num font-medium">{formatMetric(metric)}</span>
-            </span>
+            <MetricChip key={metric.label} metric={metric} />
           ))}
-
           {service.ports.slice(0, 3).map((port) => (
-            <span
-              key={`${port.protocol}-${port.hostPort ?? port.port}`}
-              className="num inline-flex items-center gap-1 rounded-md border border-route/25 bg-route/10 px-1.5 py-0.5 text-[12px] text-route"
-              title={port.label ? `${port.label} (${port.protocol})` : port.protocol}
-            >
-              <Radio className="size-3" />
-              {port.hostPort ?? port.port}
-            </span>
+            <PortChip key={`${port.protocol}-${port.hostPort ?? port.port}`} port={port} />
           ))}
-
-          {primaryUrl && (
-            <a
-              href={primaryUrl.url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-[12px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
-            >
-              {primaryUrl.label}
-              <ArrowUpRight className="size-3" />
-            </a>
-          )}
-        </div>
+          {primaryUrl && <EndpointLink url={primaryUrl} />}
+        </CardContent>
       )}
 
       {/* Resource alerts get their own row, above the provider warnings: they
           describe load rather than a broken service, and the two would be
           indistinguishable in one list. */}
       {alert && (
-        <button
-          type="button"
+        <Callout
+          as="button"
+          tone={alertTone(alert.severity)}
+          icon={Gauge}
           onClick={onOpen}
           title={`Since ${alert.activatedAt}`}
-          className={clsx(
-            'mx-4 mb-3 ml-5 flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[12.5px] leading-relaxed',
-            alert.severity === 'critical'
-              ? 'border-st-failed/30 bg-st-failed/[0.07] text-st-failed'
-              : 'border-st-degraded/30 bg-st-degraded/[0.07] text-st-degraded',
-          )}
+          className="mx-4 mb-3 ml-5 text-[12.5px]"
         >
-          <Gauge className="mt-0.5 size-3.5 shrink-0" />
-          <span className="min-w-0 break-words">
-            {alert.label} {alert.severity} · {formatResource(alert.value, alert.unit)} over{' '}
-            {formatResource(alert.threshold, alert.unit)}
-            {alert.stale && ' (no fresh samples)'}
-            {service.alerts.length > 1 && <span className="ml-1 underline decoration-dotted">+{service.alerts.length - 1} more</span>}
-          </span>
-        </button>
+          {alert.label} {alert.severity} · {formatResource(alert.value, alert.unit)} over{' '}
+          {formatResource(alert.threshold, alert.unit)}
+          {alert.stale && ' (no fresh samples)'}
+          {service.alerts.length > 1 && (
+            <span className="ml-1 underline decoration-dotted">+{service.alerts.length - 1} more</span>
+          )}
+        </Callout>
       )}
 
       {warning && (
-        <div className="mx-4 mb-3 ml-5 flex items-start gap-2 rounded-lg border border-st-degraded/25 bg-st-degraded/[0.07] px-2.5 py-1.5 text-[12.5px] leading-relaxed text-st-degraded">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          <span className="min-w-0 break-words">
-            {warning}
-            {service.warnings.length + service.errors.length > 1 && (
-              <button type="button" onClick={onOpen} className="ml-1 underline decoration-dotted hover:text-ink">
-                +{service.warnings.length + service.errors.length - 1} more
-              </button>
-            )}
-          </span>
-        </div>
+        <Callout tone="warn" icon={AlertTriangle} className="mx-4 mb-3 ml-5 text-[12.5px]">
+          {warning}
+          {extraProblems > 0 && (
+            <button type="button" onClick={onOpen} className="ml-1 underline decoration-dotted hover:text-ink">
+              +{extraProblems} more
+            </button>
+          )}
+        </Callout>
       )}
 
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-line-soft/70 px-4 py-2.5 pl-5">
+      <CardFooter className="mt-auto flex items-center justify-between gap-2 rounded-b-[var(--radius-card)] border-t border-line-soft/70 bg-transparent px-4 py-2.5 pl-5">
         <ActionRow service={service} onRun={(action) => onRunAction(service, action)} />
         <div className="flex shrink-0 items-center gap-2 text-[11.5px] text-faint">
-          {service.lastAction && (
-            <span
-              title={`${service.lastAction.label}: ${service.lastAction.message}`}
-              className={clsx(
-                'hidden items-center gap-1 sm:flex',
-                service.lastAction.ok ? 'text-faint' : 'text-st-failed/80',
-              )}
-            >
-              <ScrollText className="size-3" />
-              {service.lastAction.label}
-            </span>
-          )}
-          <span title={service.lastCheckedAt ? `Last status check: ${service.lastCheckedAt}` : 'Never checked'}>
-            {service.checking ? 'checking…' : formatAgo(service.lastCheckedAt)}
-          </span>
+          <LastCheckedInfo service={service} />
         </div>
-      </div>
-    </article>
+        </CardFooter>
+    </Card>
   );
 }
 
