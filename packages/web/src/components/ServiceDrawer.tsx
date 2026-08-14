@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowUpRight,
   Boxes,
   Clock3,
   FolderOpen,
@@ -15,13 +14,19 @@ import {
   Settings2,
   X,
 } from 'lucide-react';
-import clsx from 'clsx';
-import { hasGpuAcceleration } from '../lib/gpu';
-import { useRefreshService, useServiceDetail } from '../lib/hooks';
-import { formatAgo, formatClock, formatDuration, formatMetric, formatResource, formatUptime } from '../lib/format';
-import { iconFor } from '../lib/icons';
-import { resourceEntries } from '../lib/resources';
-import { stateStyle } from '../lib/status';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetClose, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { hasGpuAcceleration } from '@/lib/gpu';
+import { useRefreshService, useServiceDetail } from '@/lib/hooks';
+import { formatAgo, formatClock, formatDuration, formatMetric, formatResource, formatUptime } from '@/lib/format';
+import { iconFor } from '@/lib/icons';
+import { alertTone, resourceEntries } from '@/lib/resources';
+import { stateStyle, toneStyle } from '@/lib/status';
+import { Callout } from './Callout';
+import { EndpointLink } from './ServiceChips';
 import { StatusBadge, StatusIndicator } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
 import { containerOptionsFrom, LogPane } from './LogPane';
@@ -34,7 +39,7 @@ import type {
   ResourceAlert,
   ServiceDetail,
   ServiceSummary,
-} from '../lib/types';
+} from '@/lib/types';
 
 type Tab = 'overview' | 'logs' | 'history' | 'config';
 
@@ -54,165 +59,131 @@ export function ServiceDrawer({
   useEffect(() => setTab('overview'), [serviceId]);
 
   const service = detail.data;
-
-  /*
-   * Mount lifecycle is explicit: `serviceId` drives visibility and a timer drops
-   * the node once the closing animation has had its time.
-   *
-   * Nothing here waits for an animation to report completion. A background tab
-   * suspends requestAnimationFrame, so an overlay whose unmount depended on an
-   * animation callback would stay mounted indefinitely — with a full-viewport
-   * backdrop swallowing every click once the tab came back.
-   */
-  const [mounted, setMounted] = useState(serviceId !== null);
-
-  useEffect(() => {
-    if (serviceId !== null) {
-      setMounted(true);
-      return;
-    }
-    const timer = setTimeout(() => setMounted(false), CLOSE_MS);
-    return () => clearTimeout(timer);
-  }, [serviceId]);
-
-  if (!mounted) return null;
-  const open = serviceId !== null;
-  // Backdrop blur and a large shadow blur radius are near-free on a GPU
-  // compositor, but get rasterized on the main thread without one — right on
-  // the animation path, so a software renderer turns the open/close slide
-  // janky. Drop them when there's no GPU to composite them for free.
+  // A large shadow blur radius is near-free on a GPU compositor but gets
+  // rasterized on the main thread without one — right on the animation path,
+  // so a software renderer turns the open/close slide janky.
   const gpu = hasGpuAcceleration();
 
   return (
-    <>
-      {
-        <div
-          className={clsx(
-            'fixed inset-0 z-50 flex justify-end',
-            open ? 'animate-fade-in' : 'animate-fade-out pointer-events-none',
-          )}
-        >
-          <div
-            className={clsx('absolute inset-0 bg-base/60', gpu && 'backdrop-blur-[2px]')}
-            onClick={onClose}
-          />
+    <Sheet open={serviceId !== null} onOpenChange={(next) => !next && onClose()}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        aria-describedby={undefined}
+        // Wide by design: container lists, argv lines and log output are all
+        // horizontal content that a narrow panel forces into wrapping. The
+        // width has to be stated on the same `data-[side]` variant SheetContent
+        // uses, or its own `sm:max-w-sm` is never displaced.
+        className={cn(
+          'glass gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[min(84rem,96vw)]',
+          gpu ? 'shadow-[-30px_0_80px_-40px_rgba(0,0,0,1)]' : 'shadow-[-8px_0_16px_-8px_rgba(0,0,0,0.6)]',
+        )}
+      >
+        {detail.isPending && (
+          <>
+            <SheetTitle className="sr-only">Loading service</SheetTitle>
+            <div className="flex flex-1 items-center justify-center gap-2 text-ink-3">
+              <Loader2 className="size-4 animate-spin" /> loading service…
+            </div>
+          </>
+        )}
 
-          <aside
-            // Wide by design: container lists, argv lines and log output are all
-            // horizontal content that a narrow panel forces into wrapping.
-            className={clsx(
-              'glass relative flex h-full w-full max-w-[min(84rem,96vw)] flex-col border-l',
-              gpu ? 'shadow-[-30px_0_80px_-40px_rgba(0,0,0,1)]' : 'shadow-[-8px_0_16px_-8px_rgba(0,0,0,0.6)]',
-              open ? 'animate-slide-in' : 'animate-slide-out',
-            )}
-            role="dialog"
-            aria-modal="true"
-            aria-label={service?.name ?? 'Service details'}
-          >
-            {detail.isPending && (
-              <div className="flex flex-1 items-center justify-center gap-2 text-muted">
-                <Loader2 className="size-4 animate-spin" /> loading service…
-              </div>
-            )}
+        {detail.isError && (
+          <>
+            <SheetTitle className="sr-only">Service details unavailable</SheetTitle>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+              <AlertTriangle className="size-6 text-st-failed" />
+              <p className="text-[14px] text-ink">Could not load this service</p>
+              <p className="mono text-faint">{(detail.error as Error).message}</p>
+              <Button variant="outline" onClick={() => detail.refetch()}>
+                Try again
+              </Button>
+            </div>
+          </>
+        )}
 
-            {detail.isError && (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-                <AlertTriangle className="size-6 text-st-failed" />
-                <p className="text-[14px] text-ink">Could not load this service</p>
-                <p className="mono text-faint">{(detail.error as Error).message}</p>
-                <button
-                  type="button"
-                  onClick={() => detail.refetch()}
-                  className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-2 hover:bg-surface-2"
-                >
-                  Try again
-                </button>
-              </div>
-            )}
+        {service && (
+          <>
+            <DrawerHeader
+              service={service}
+              onClose={onClose}
+              onRefresh={() => refresh.mutate(service.id)}
+              refreshing={refresh.isPending || service.checking}
+            />
 
-            {service && (
-              <>
-                <DrawerHeader
-                  service={service}
-                  onClose={onClose}
-                  onRefresh={() => refresh.mutate(service.id)}
-                  refreshing={refresh.isPending || service.checking}
-                />
+            <Tabs
+              value={tab}
+              onValueChange={(value) => setTab(value as Tab)}
+              className="min-h-0 flex-1 gap-0"
+            >
+              <TabsList variant="line" className="h-auto shrink-0 gap-0.5 border-b border-line-soft px-3">
+                {(
+                  [
+                    ['overview', 'Overview', Info],
+                    ['logs', 'Logs', ScrollText],
+                    ['history', 'History', History],
+                    ['config', 'Definition', Settings2],
+                  ] as const
+                ).map(([id, label, Icon]) => {
+                  const disabled = id === 'logs' && !service.supportsLogs;
+                  return (
+                    <TabsTrigger
+                      key={id}
+                      value={id}
+                      disabled={disabled}
+                      title={disabled ? 'This provider exposes no logs' : undefined}
+                      className="px-3 py-2.5 text-[13.5px] text-ink-3 after:bg-signal hover:text-ink data-active:text-signal dark:text-ink-3 dark:hover:text-ink dark:data-active:text-signal"
+                    >
+                      <Icon className="size-3.5" />
+                      {label}
+                      {id === 'history' && service.history.length > 0 && (
+                        <span className="num rounded bg-surface-2 px-1 text-[11px] text-ink-3">
+                          {service.history.length}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
 
-                <nav className="flex shrink-0 gap-0.5 border-b border-line-soft px-3">
-                  {(
-                    [
-                      ['overview', 'Overview', Info],
-                      ['logs', 'Logs', ScrollText],
-                      ['history', 'History', History],
-                      ['config', 'Definition', Settings2],
-                    ] as const
-                  ).map(([id, label, Icon]) => {
-                    const disabled = id === 'logs' && !service.supportsLogs;
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setTab(id)}
-                        title={disabled ? 'This provider exposes no logs' : undefined}
-                        className={clsx(
-                          'relative flex items-center gap-1.5 px-3 py-2.5 text-[13.5px] font-medium transition-colors',
-                          disabled && 'cursor-not-allowed opacity-35',
-                          tab === id ? 'text-signal' : 'text-muted hover:text-ink',
-                        )}
-                      >
-                        <Icon className="size-3.5" />
-                        {label}
-                        {id === 'history' && service.history.length > 0 && (
-                          <span className="num rounded bg-surface-2 px-1 text-[11px] text-muted">
-                            {service.history.length}
-                          </span>
-                        )}
-                        {tab === id && (
-                          <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-signal" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </nav>
-
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  {tab === 'overview' && <OverviewTab service={service} />}
-                  {tab === 'logs' && (
-                    <LogPane
-                      serviceId={service.id}
-                      enabled={service.supportsLogs}
-                      containerOptions={containerOptionsFrom(service.childStatuses)}
-                    />
-                  )}
-                  {tab === 'history' && <HistoryTab service={service} />}
-                  {tab === 'config' && <ConfigTab service={service} />}
-                </div>
-
-                <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line-soft bg-base/40 px-4 py-3">
-                  {/* The drawer has room, so every action is shown inline. */}
-                  <ActionRow
-                    service={service}
-                    inlineKinds={['primary', 'secondary', 'danger', 'utility']}
-                    inlineLimit={12}
-                    onRun={(action) => onRunAction(service, action)}
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <TabsContent value="overview" className="h-full">
+                  <OverviewTab service={service} />
+                </TabsContent>
+                <TabsContent value="logs" className="h-full">
+                  <LogPane
+                    serviceId={service.id}
+                    enabled={service.supportsLogs}
+                    containerOptions={containerOptionsFrom(service.childStatuses)}
                   />
-                  <span className="text-[11.5px] text-faint">
-                    checked {service.checking ? 'now' : formatAgo(service.lastCheckedAt)}
-                  </span>
-                </footer>
-              </>
-            )}
-          </aside>
-        </div>
-      }
-    </>
+                </TabsContent>
+                <TabsContent value="history" className="h-full">
+                  <HistoryTab service={service} />
+                </TabsContent>
+                <TabsContent value="config" className="h-full">
+                  <ConfigTab service={service} />
+                </TabsContent>
+              </div>
+            </Tabs>
+
+            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line-soft bg-base/40 px-4 py-3">
+              {/* The drawer has room, so every action is shown inline. */}
+              <ActionRow
+                service={service}
+                inlineKinds={['primary', 'secondary', 'danger', 'utility']}
+                inlineLimit={12}
+                onRun={(action) => onRunAction(service, action)}
+              />
+              <span className="text-[11.5px] text-faint">
+                checked {service.checking ? 'now' : formatAgo(service.lastCheckedAt)}
+              </span>
+            </footer>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
-
-/** Closing animation budget before the overlay is unmounted. */
-const CLOSE_MS = 200;
 
 function DrawerHeader({
   service,
@@ -250,7 +221,7 @@ function DrawerHeader({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="truncate text-[17px] font-semibold text-ink">{service.name}</h2>
+            <SheetTitle className="truncate text-[17px] font-semibold text-ink">{service.name}</SheetTitle>
             <StatusBadge state={service.state} />
           </div>
           <p className="mono mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-faint">
@@ -273,23 +244,27 @@ function DrawerHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="icon-sm"
             onClick={onRefresh}
             aria-label="Re-check status"
             title="Re-check status now"
-            className="rounded-lg border border-line bg-surface-2/60 p-1.5 text-muted transition-colors hover:text-signal"
+            className="border-line bg-surface-2/60 text-ink-3 hover:text-signal"
           >
-            <RefreshCw className={clsx('size-3.5', refreshing && 'animate-spin text-signal')} />
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close details"
-            className="rounded-lg border border-line bg-surface-2/60 p-1.5 text-muted transition-colors hover:text-ink"
-          >
-            <X className="size-3.5" />
-          </button>
+            <RefreshCw className={cn(refreshing && 'animate-spin text-signal')} />
+          </Button>
+          <SheetClose asChild>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={onClose}
+              aria-label="Close details"
+              className="border-line bg-surface-2/60 text-ink-3 hover:text-ink"
+            >
+              <X />
+            </Button>
+          </SheetClose>
         </div>
       </div>
 
@@ -324,18 +299,9 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
         <Section title="Warnings" icon={AlertTriangle}>
           <ul className="space-y-1.5">
             {problems.map((problem, index) => (
-              <li
-                key={index}
-                className={clsx(
-                  'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[13px] leading-relaxed',
-                  problem.severe
-                    ? 'border-st-failed/25 bg-st-failed/[0.07] text-st-failed'
-                    : 'border-st-degraded/25 bg-st-degraded/[0.06] text-st-degraded',
-                )}
-              >
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                <span className="min-w-0 break-words">{problem.text}</span>
-              </li>
+              <Callout key={index} as="li" tone={problem.severe ? 'bad' : 'warn'} icon={AlertTriangle}>
+                {problem.text}
+              </Callout>
             ))}
           </ul>
         </Section>
@@ -351,15 +317,12 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
                 key={metric.label}
                 className="flex items-baseline justify-between gap-3 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-1.5"
               >
-                <dt className="shrink-0 text-[12.5px] text-muted">{metric.label}</dt>
+                <dt className="shrink-0 text-[12.5px] text-ink-3">{metric.label}</dt>
                 <dd
-                  className={clsx(
+                  className={cn(
                     'num min-w-0 truncate text-right text-[13px] font-medium',
                     metric.kind === 'mono' && 'mono',
-                    metric.tone === 'good' && 'text-st-running',
-                    metric.tone === 'warn' && 'text-st-degraded',
-                    metric.tone === 'bad' && 'text-st-failed',
-                    (!metric.tone || metric.tone === 'default') && 'text-ink',
+                    toneStyle(metric.tone).text,
                   )}
                   title={metric.value}
                 >
@@ -385,16 +348,7 @@ function OverviewTab({ service }: { service: ServiceDetail }) {
         <Section title="Endpoints" icon={Radio}>
           <div className="flex flex-wrap gap-1.5">
             {service.urls.map((url) => (
-              <a
-                key={url.url}
-                href={url.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-2/50 px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
-              >
-                {url.label}
-                <ArrowUpRight className="size-3" />
-              </a>
+              <EndpointLink key={url.url} url={url} className="h-auto rounded-lg px-2.5 py-1.5 text-[13px]" />
             ))}
             {service.ports.map((port) => (
               <span
@@ -453,15 +407,11 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
                 key={entry.metric}
                 className="flex items-baseline justify-between gap-3 rounded-lg border border-line-soft bg-surface-2/40 px-2.5 py-1.5"
               >
-                <dt className="shrink-0 text-[12.5px] text-muted">{entry.label}</dt>
+                <dt className="shrink-0 text-[12.5px] text-ink-3">{entry.label}</dt>
                 <dd
-                  className={clsx(
+                  className={cn(
                     'num min-w-0 truncate text-right text-[13px] font-medium',
-                    entry.alert?.severity === 'critical'
-                      ? 'text-st-failed'
-                      : entry.alert
-                        ? 'text-st-degraded'
-                        : 'text-ink',
+                    toneStyle(alertTone(entry.alert?.severity)).text,
                   )}
                 >
                   {formatResource(entry.value, entry.unit)}
@@ -493,7 +443,7 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
             >
               <span className="mono min-w-0 flex-1 truncate text-ink-2">{child.name}</span>
               {resourceEntries(child).map((entry) => (
-                <span key={entry.metric} className="num text-[12.5px] text-muted">
+                <span key={entry.metric} className="num text-[12.5px] text-ink-3">
                   <span className="text-faint">{entry.short} </span>
                   {formatResource(entry.value, entry.unit)}
                 </span>
@@ -507,29 +457,28 @@ function ResourcesSection({ service }: { service: ServiceDetail }) {
 }
 
 function AlertRow({ alert }: { alert: ResourceAlert }) {
-  const critical = alert.severity === 'critical';
   return (
-    <li
-      className={clsx(
-        'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[13px] leading-relaxed',
-        critical ? 'border-st-failed/30 bg-st-failed/[0.07] text-st-failed' : 'border-st-degraded/30 bg-st-degraded/[0.06] text-st-degraded',
-      )}
-    >
-      <Gauge className="mt-0.5 size-3.5 shrink-0" />
-      <span className="min-w-0 break-words">
-        <span className="font-medium">
-          {alert.label} {alert.severity}
-        </span>{' '}
-        — {formatResource(alert.value, alert.unit)} against a threshold of{' '}
-        {formatResource(alert.threshold, alert.unit)}.{' '}
-        <span className="text-faint">
-          breach began {formatAgo(alert.breachedAt)}, alerting since {formatAgo(alert.activatedAt)}
-          {alert.stale && ' · no fresh samples'}
-        </span>
+    <Callout as="li" tone={alertTone(alert.severity)} icon={Gauge}>
+      <span className="font-medium">
+        {alert.label} {alert.severity}
+      </span>{' '}
+      — {formatResource(alert.value, alert.unit)} against a threshold of{' '}
+      {formatResource(alert.threshold, alert.unit)}.{' '}
+      <span className="text-faint">
+        breach began {formatAgo(alert.breachedAt)}, alerting since {formatAgo(alert.activatedAt)}
+        {alert.stale && ' · no fresh samples'}
       </span>
-    </li>
+    </Callout>
   );
 }
+
+/* Container health is the provider's own vocabulary, not a service state — it
+   maps onto the same status colours but has no entry in STATE_STYLES. */
+const HEALTH_CHIP: Record<string, string> = {
+  healthy: 'border-st-running/30 bg-st-running/10 text-st-running',
+  unhealthy: 'border-st-failed/30 bg-st-failed/10 text-st-failed',
+  starting: 'border-st-starting/30 bg-st-starting/10 text-st-starting',
+};
 
 function ChildRow({ child }: { child: ChildStatus }) {
   const style = stateStyle(child.state);
@@ -544,16 +493,12 @@ function ChildRow({ child }: { child: ChildStatus }) {
         </p>
       </div>
       {child.health && child.health !== 'none' && (
-        <span
-          className={clsx(
-            'rounded-md border px-1.5 py-0.5 text-[11.5px] font-medium',
-            child.health === 'healthy' && 'border-st-running/30 bg-st-running/10 text-st-running',
-            child.health === 'unhealthy' && 'border-st-failed/30 bg-st-failed/10 text-st-failed',
-            child.health === 'starting' && 'border-st-starting/30 bg-st-starting/10 text-st-starting',
-          )}
+        <Badge
+          variant="outline"
+          className={cn('rounded-md border px-1.5 text-[11.5px]', HEALTH_CHIP[child.health])}
         >
           {child.health}
-        </span>
+        </Badge>
       )}
       {child.ports && child.ports.length > 0 && (
         <span className="num hidden shrink-0 gap-1 text-[11.5px] text-route sm:flex">
@@ -604,9 +549,9 @@ function HistoryTab({ service }: { service: ServiceDetail }) {
 function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const headline = (
     <>
-      <span className={clsx('size-1.5 shrink-0 rounded-full', HISTORY_DOT[entry.severity])} />
+      <span className={cn('size-1.5 shrink-0 rounded-full', HISTORY_DOT[entry.severity])} />
       <span className="text-[13.5px] font-medium text-ink">{entry.label}</span>
-      <span className="min-w-0 flex-1 truncate text-[13px] text-muted">{entry.message}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px] text-ink-3">{entry.message}</span>
       {entry.action && (
         <span className="num shrink-0 text-[11.5px] text-faint">{formatDuration(entry.action.durationMs)}</span>
       )}
@@ -786,8 +731,8 @@ function Section({
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-line-soft/60 pb-1 last:border-0">
-      <dt className="shrink-0 text-[12.5px] text-muted">{label}</dt>
-      <dd className={clsx('min-w-0 break-all text-right text-[13px] text-ink', mono && 'mono')}>{value}</dd>
+      <dt className="shrink-0 text-[12.5px] text-ink-3">{label}</dt>
+      <dd className={cn('min-w-0 break-all text-right text-[13px] text-ink', mono && 'mono')}>{value}</dd>
     </div>
   );
 }

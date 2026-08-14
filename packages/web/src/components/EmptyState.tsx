@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronRight, FileWarning, MonitorX, PowerOff, SearchX, Unplug, X } from 'lucide-react';
-import clsx from 'clsx';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Callout } from './Callout';
 import { Logo } from './Logo';
-import type { DisabledService } from '../lib/types';
+import type { DisabledService } from '@/lib/types';
 
 /** No services in the config file at all. */
 export function NoServicesState({ configPath }: { configPath?: string }) {
@@ -45,13 +47,9 @@ export function NoMatchesState({ onClear }: { onClear: () => void }) {
       title="Nothing matches these filters"
       body="Try a different search term, or clear the active filters."
     >
-      <button
-        type="button"
-        onClick={onClear}
-        className="mt-4 rounded-lg border border-signal/35 bg-signal/12 px-3 py-1.5 text-[13px] font-medium text-signal transition-colors hover:bg-signal/20"
-      >
+      <SignalButton className="mt-4" onClick={onClear}>
         Clear filters
-      </button>
+      </SignalButton>
     </Shell>
   );
 }
@@ -66,13 +64,7 @@ export function ApiDownState({ message, onRetry }: { message: string; onRetry: (
     >
       <p className="mono mt-1 max-w-lg break-words text-st-failed/80">{message}</p>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded-lg border border-signal/35 bg-signal/12 px-3 py-1.5 text-[13px] font-medium text-signal transition-colors hover:bg-signal/20"
-        >
-          Retry
-        </button>
+        <SignalButton onClick={onRetry}>Retry</SignalButton>
         <code className="mono rounded-lg border border-line bg-base/60 px-2.5 py-1.5 text-faint">npm start</code>
       </div>
     </Shell>
@@ -83,23 +75,20 @@ export function ApiDownState({ message, onRetry }: { message: string; onRetry: (
 export function ConfigWarnings({ warnings }: { warnings: string[] }) {
   if (warnings.length === 0) return null;
   return (
-    <div className="mx-auto mb-4 max-w-[110rem] px-4 sm:px-6">
-      <div className="flex items-start gap-2.5 rounded-xl border border-st-degraded/25 bg-st-degraded/[0.06] px-3 py-2.5">
-        <FileWarning className="mt-0.5 size-4 shrink-0 text-st-degraded" />
-        <div className="min-w-0">
-          <p className="text-[13.5px] font-medium text-st-degraded">
-            {warnings.length === 1 ? 'Configuration warning' : `${warnings.length} configuration warnings`}
-          </p>
-          <ul className="mt-1 space-y-0.5">
-            {warnings.map((warning) => (
-              <li key={warning} className="mono break-words text-st-degraded/80">
-                {warning}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
+    <Banner>
+      <Callout tone="warn" icon={FileWarning} className="px-3 py-2.5 text-[13.5px]">
+        <span className="font-medium">
+          {warnings.length === 1 ? 'Configuration warning' : `${warnings.length} configuration warnings`}
+        </span>
+        <ul className="mt-1 space-y-0.5">
+          {warnings.map((warning) => (
+            <li key={warning} className="mono break-words text-st-degraded/80">
+              {warning}
+            </li>
+          ))}
+        </ul>
+      </Callout>
+    </Banner>
   );
 }
 
@@ -112,22 +101,24 @@ export function ConfigWarnings({ warnings }: { warnings: string[] }) {
 export function GpuAccelWarning({ dismissed, onDismiss }: { dismissed: boolean; onDismiss: () => void }) {
   if (dismissed) return null;
   return (
-    <div className="mx-auto mb-4 max-w-[110rem] px-4 sm:px-6">
-      <div className="flex items-start gap-2.5 rounded-xl border border-st-degraded/25 bg-st-degraded/[0.06] px-3 py-2.5">
-        <MonitorX className="mt-0.5 size-4 shrink-0 text-st-degraded" />
-        <p className="min-w-0 flex-1 text-[13.5px] text-st-degraded">
-          GPU acceleration is off in this browser. Some visual effects are toned down so the UI stays smooth.
-        </p>
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-          className="shrink-0 rounded-md p-1 text-st-degraded/70 transition-colors hover:bg-st-degraded/10 hover:text-st-degraded"
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-    </div>
+    <Banner>
+      <Callout tone="warn" icon={MonitorX} className="items-center px-3 py-2.5 text-[13.5px]">
+        <span className="flex items-center gap-2">
+          <span className="flex-1">
+            GPU acceleration is off in this browser. Some visual effects are toned down so the UI stays smooth.
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onDismiss}
+            aria-label="Dismiss"
+            className="shrink-0 text-st-degraded/70 hover:bg-st-degraded/10 hover:text-st-degraded"
+          >
+            <X />
+          </Button>
+        </span>
+      </Callout>
+    </Banner>
   );
 }
 
@@ -142,15 +133,17 @@ export function DisabledServices({ services }: { services: DisabledService[] }) 
 
   return (
     <div className="mx-auto mt-8 max-w-[110rem] px-4 sm:px-6">
-      <button
-        type="button"
+      <Button
+        variant="outline"
+        size="sm"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 rounded-lg border border-line-soft bg-surface/40 px-2.5 py-1.5 text-[12.5px] text-muted transition-colors hover:text-ink"
+        aria-expanded={open}
+        className="rounded-lg border-line-soft bg-surface/40 text-[12.5px] text-ink-3 hover:text-ink"
       >
-        <PowerOff className="size-3.5" />
+        <PowerOff />
         {services.length} disabled {services.length === 1 ? 'service' : 'services'}
-        <ChevronRight className={clsx('size-3.5 transition-transform', open && 'rotate-90')} />
-      </button>
+        <ChevronRight className={cn('transition-transform', open && 'rotate-90')} />
+      </Button>
 
       {open && (
         <ul className="animate-rise mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -179,12 +172,30 @@ export function DisabledServices({ services }: { services: DisabledService[] }) 
 
 export function InlineError({ message }: { message: string }) {
   return (
-    <div className="mx-auto mb-4 flex max-w-[110rem] items-start gap-2 px-4 sm:px-6">
-      <div className="flex w-full items-start gap-2.5 rounded-xl border border-st-failed/25 bg-st-failed/[0.06] px-3 py-2.5">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-st-failed" />
-        <p className="min-w-0 break-words text-[13.5px] text-st-failed">{message}</p>
-      </div>
-    </div>
+    <Banner>
+      <Callout tone="bad" icon={AlertTriangle} className="px-3 py-2.5 text-[13.5px]">
+        {message}
+      </Callout>
+    </Banner>
+  );
+}
+
+/** Full-width strip above the service list, where every banner sits. */
+function Banner({ children }: { children: React.ReactNode }) {
+  return <div className="mx-auto mb-4 max-w-[110rem] px-4 sm:px-6">{children}</div>;
+}
+
+/** The one call-to-action style the empty states use. */
+function SignalButton({ className, ...props }: React.ComponentProps<typeof Button>) {
+  return (
+    <Button
+      variant="outline"
+      className={cn(
+        'rounded-lg border-signal/35 bg-signal/12 text-[13px] font-medium text-signal hover:bg-signal/20 hover:text-signal',
+        className,
+      )}
+      {...props}
+    />
   );
 }
 

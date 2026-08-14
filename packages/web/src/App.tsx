@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ApiError } from './lib/api';
+import { ApiError } from '@/lib/api';
 import {
   keys,
   useDebounced,
@@ -14,16 +14,16 @@ import {
   useServices,
   useStateCounts,
   useTicker,
-} from './lib/hooks';
-import { stateStyle } from './lib/status';
-import { formatResource } from './lib/format';
-import type { ActionDescriptor, ActionRecord, ResourceAlertEvent, ServiceSummary, ViewMode } from './lib/types';
-import { TopBar } from './components/TopBar';
-import { FilterBar, type Filters } from './components/FilterBar';
-import { ServiceCard, SkeletonCard } from './components/ServiceCard';
-import { ServiceTable, SkeletonTable } from './components/ServiceTable';
-import { ServiceDrawer } from './components/ServiceDrawer';
-import { ConfirmDialog, type ConfirmRequest } from './components/ConfirmDialog';
+} from '@/lib/hooks';
+import { stateStyle } from '@/lib/status';
+import { formatResource } from '@/lib/format';
+import type { ActionDescriptor, ActionRecord, ResourceAlertEvent, ServiceSummary, ViewMode } from '@/lib/types';
+import { TopBar } from '@/components/TopBar';
+import { FilterBar, type Filters } from '@/components/FilterBar';
+import { ServiceCard, SkeletonCard } from '@/components/ServiceCard';
+import { ServiceTable, SkeletonTable } from '@/components/ServiceTable';
+import { ServiceDrawer } from '@/components/ServiceDrawer';
+import { ConfirmDialog, type ConfirmRequest } from '@/components/ConfirmDialog';
 import {
   ApiDownState,
   ConfigWarnings,
@@ -32,11 +32,11 @@ import {
   InlineError,
   NoMatchesState,
   NoServicesState,
-} from './components/EmptyState';
-import { useToasts } from './components/Toasts';
-import { hasGpuAcceleration } from './lib/gpu';
-import { notify, notificationsSupported, requestNotificationPermission } from './lib/notify';
-import type { ServiceState } from './lib/types';
+} from '@/components/EmptyState';
+import { useToasts } from '@/components/Toasts';
+import { hasGpuAcceleration } from '@/lib/gpu';
+import { notify, notificationsSupported, requestNotificationPermission } from '@/lib/notify';
+import type { ServiceState } from '@/lib/types';
 
 const DEFAULT_FILTERS: Filters = { group: null, states: [], types: [], sort: 'group' };
 

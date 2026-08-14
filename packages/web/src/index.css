@@ -1,4 +1,10 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+/* The dashboard is dark-only, but shadcn components carry `dark:` utilities.
+   `<html class="dark">` (index.html) is what switches them on. */
+@custom-variant dark (&:is(.dark *));
 
 /* ───────────────────────────────────────────────────────────────────────────
    Switchyard design tokens.
@@ -19,7 +25,9 @@
 
   --color-ink: #e8eef7;
   --color-ink-2: #aab8c9;
-  --color-muted: #7d8b9d;
+  /* Named by position in the ink ladder rather than "muted": Tailwind derives
+     `text-muted` from shadcn's `--muted` surface token, which is a background. */
+  --color-ink-3: #7d8b9d;
   --color-faint: #5a6878;
 
   --color-signal: #2ee6c5;
@@ -207,6 +215,12 @@
     border-radius: 6px;
   }
 
+  /* Tailwind v4 defaults an uncoloured `border` utility to currentColor, which
+     the shadcn components rely on not being the case. */
+  * {
+    @apply border-border outline-ring/50;
+  }
+
   /* Scrollbars: thin, on-theme, visible enough to grab. */
   * {
     scrollbar-width: thin;
@@ -299,4 +313,73 @@ html[data-hidden='true'] *::after {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   shadcn/ui semantic layer.
+
+   shadcn components are written against `--background`, `--card`, `--primary`
+   and friends. Rather than adopt its stock palette, each token is pointed at
+   the switchyard tokens above, so a stock `<Button>` or `<Card>` comes out in
+   the control-room colours the dashboard already had. The tokens above stay
+   the single place a colour is chosen; this block only assigns roles.
+   ─────────────────────────────────────────────────────────────────────────── */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: var(--color-base);
+  --foreground: var(--color-ink);
+
+  /* Panel surfaces climb the same ladder the hand-written components use:
+     card < popover < secondary, so a menu floating over a card still reads as
+     the nearer object. */
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-surface-2);
+  --popover-foreground: var(--color-ink);
+  --secondary: var(--color-surface-3);
+  --secondary-foreground: var(--color-ink);
+
+  --primary: var(--color-signal);
+  /* Teal is a light accent, so anything sitting on it takes the base colour. */
+  --primary-foreground: var(--color-base);
+
+  --muted: var(--color-surface-2);
+  --muted-foreground: var(--color-ink-3);
+  --accent: var(--color-surface-3);
+  --accent-foreground: var(--color-ink);
+
+  --destructive: var(--color-st-failed);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-signal);
+
+  --radius: var(--radius-card);
 }

@@ -1,6 +1,7 @@
-import clsx from 'clsx';
-import { stateStyle } from '../lib/status';
-import type { ServiceState } from '../lib/types';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { stateStyle } from '@/lib/status';
+import type { ServiceState } from '@/lib/types';
 
 /**
  * Status is expressed three ways at once — colour, shape and motion — so a
@@ -95,17 +96,14 @@ export function StatusBadge({
 }) {
   const style = stateStyle(state);
   return (
-    <span
+    <Badge
+      variant="outline"
       title={style.hint}
-      className={clsx(
-        'inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[12px] font-medium tracking-wide',
-        style.chip,
-        className,
-      )}
+      className={cn('h-auto gap-1.5 border px-2 py-[3px] text-[12px] tracking-wide', style.chip, className)}
     >
       <StatusIndicator state={state} size={9} />
       {label ?? style.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -121,7 +119,7 @@ export function StateDistribution({
 }) {
   const order: ServiceState[] = ['running', 'degraded', 'failed', 'starting', 'stopping', 'stopped', 'unknown'];
   return (
-    <div className={clsx('flex h-1.5 w-full overflow-hidden rounded-full bg-surface-2', className)}>
+    <div className={cn('flex h-1.5 w-full overflow-hidden rounded-full bg-surface-2', className)}>
       {order.map((state) => {
         const count = counts.get(state) ?? 0;
         if (count === 0) return null;

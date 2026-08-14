@@ -1,12 +1,22 @@
-import { AlertTriangle, ArrowUpRight, Clock3, Gauge, Radio, ScrollText } from 'lucide-react';
-import clsx from 'clsx';
-import { iconFor } from '../lib/icons';
-import { resourceEntries } from '../lib/resources';
-import { stateStyle } from '../lib/status';
-import { formatAgo, formatResource, formatUptime } from '../lib/format';
-import { StatusBadge, StatusIndicator } from './StatusIndicator';
+import { AlertTriangle, Gauge } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
+import { iconFor } from '@/lib/icons';
+import { alertTone, resourceEntries } from '@/lib/resources';
+import { stateStyle, toneStyle } from '@/lib/status';
+import { formatResource } from '@/lib/format';
+import {
+  ActivityLine,
+  EndpointLink,
+  LastCheckedInfo,
+  PortChip,
+  ProviderChip,
+  StateRail,
+  UptimeLabel,
+} from './ServiceChips';
+import { StatusBadge } from './StatusIndicator';
 import { ActionRow } from './ActionControls';
-import type { ActionDescriptor, ServiceSummary } from '../lib/types';
+import type { ActionDescriptor, ServiceSummary } from '@/lib/types';
 
 export interface ServiceTableProps {
   services: ServiceSummary[];
@@ -29,43 +39,41 @@ export interface ServiceTableProps {
 export function ServiceTable({ services, groupNames, onOpen, onRunAction }: ServiceTableProps) {
   return (
     <div className="glass card-sheen overflow-hidden rounded-[var(--radius-card)]">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[56rem] border-collapse text-left">
-          <thead>
-            <tr className="text-[11.5px] uppercase tracking-wider text-faint">
-              <Th className="pl-5">Service</Th>
-              <Th className="w-px whitespace-nowrap">State</Th>
-              <Th className="hidden lg:table-cell">Detail</Th>
-              <Th className="hidden w-px whitespace-nowrap xl:table-cell">Group</Th>
-              <Th className="hidden w-px whitespace-nowrap md:table-cell">Uptime</Th>
-              <Th className="hidden w-px whitespace-nowrap md:table-cell">Load</Th>
-              <Th className="hidden lg:table-cell">Endpoints</Th>
-              <Th className="w-px whitespace-nowrap text-right">Actions</Th>
-              <Th className="hidden w-px whitespace-nowrap text-right sm:table-cell">Checked</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {services.map((service) => (
-              <ServiceRow
-                key={service.id}
-                service={service}
-                groupName={groupNames.get(service.group) ?? service.group}
-                onOpen={() => onOpen(service)}
-                onRunAction={(action) => onRunAction(service, action)}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table className="min-w-[56rem] border-collapse text-left">
+        <TableHeader>
+          <TableRow className="text-[11.5px] uppercase tracking-wider text-faint hover:bg-transparent [&>th]:border-b [&>th]:border-line/70">
+            <Th className="pl-5">Service</Th>
+            <Th className="w-px">State</Th>
+            <Th className="hidden lg:table-cell">Detail</Th>
+            <Th className="hidden w-px xl:table-cell">Group</Th>
+            <Th className="hidden w-px md:table-cell">Uptime</Th>
+            <Th className="hidden w-px md:table-cell">Load</Th>
+            <Th className="hidden lg:table-cell">Endpoints</Th>
+            <Th className="w-px text-right">Actions</Th>
+            <Th className="hidden w-px text-right sm:table-cell">Checked</Th>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {services.map((service) => (
+            <ServiceRow
+              key={service.id}
+              service={service}
+              groupName={groupNames.get(service.group) ?? service.group}
+              onOpen={() => onOpen(service)}
+              onRunAction={(action) => onRunAction(service, action)}
+            />
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
 function Th({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <th scope="col" className={clsx('border-b border-line/70 px-3 py-2.5 font-medium', className)}>
+    <TableHead scope="col" className={cn('h-auto px-3 py-2.5 text-inherit', className)}>
       {children}
-    </th>
+    </TableHead>
   );
 }
 
@@ -82,7 +90,6 @@ function ServiceRow({
 }) {
   const style = stateStyle(service.state);
   const Icon = iconFor(service.icon, service.type);
-  const uptime = formatUptime(service.since);
   const primaryUrl = service.urls.find((url) => url.primary) ?? service.urls[0];
   const warning = service.warnings[0] ?? service.errors[0];
   const extraWarnings = service.warnings.length + service.errors.length - 1;
@@ -94,25 +101,14 @@ function ServiceRow({
   const alert = service.alerts[0];
 
   return (
-    <tr
-      className={clsx(
-        'group border-b border-line-soft/50 align-middle transition-colors last:border-b-0 hover:bg-surface-2/40',
-        service.busy && 'bg-signal/[0.04]',
-      )}
+    <TableRow
+      className={cn('group border-line-soft/50 align-middle hover:bg-surface-2/40', service.busy && 'bg-signal/[0.04]')}
     >
       {/* Name cell carries the state rail, mirroring the card's left edge. */}
-      <td className="relative py-2.5 pl-5 pr-3">
-        <span
-          aria-hidden
-          className="absolute inset-y-1.5 left-0 w-[2px] rounded-full"
-          style={{
-            background: style.color,
-            boxShadow: `0 0 14px -2px ${style.color}`,
-            opacity: service.state === 'stopped' ? 0.45 : 0.9,
-          }}
-        />
+      <TableCell className="relative py-2.5 pl-5 pr-3">
+        <StateRail color={style.color} dimmed={service.state === 'stopped'} className="inset-y-1.5" />
         <div className="flex min-w-0 items-center gap-2.5">
-          <Icon className="size-4 shrink-0 text-muted" />
+          <Icon className="size-4 shrink-0 text-ink-3" />
           <button type="button" onClick={onOpen} className="min-w-0 text-left">
             <span className="flex items-center gap-1.5">
               <span className="truncate text-[14px] font-semibold text-ink transition-colors group-hover:text-signal">
@@ -130,7 +126,7 @@ function ServiceRow({
               )}
               {alert && (
                 <span
-                  className={clsx('shrink-0', alert.severity === 'critical' ? 'text-st-failed' : 'text-st-degraded')}
+                  className={cn('shrink-0', toneStyle(alertTone(alert.severity)).text)}
                   title={
                     `${alert.label} ${alert.severity}: ${formatResource(alert.value, alert.unit)} over ` +
                     `${formatResource(alert.threshold, alert.unit)}` +
@@ -141,67 +137,40 @@ function ServiceRow({
                 </span>
               )}
             </span>
-            <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-faint">
-              <span className="rounded border border-line-soft bg-surface-2/60 px-1.5 py-px font-medium text-muted">
-                {service.providerLabel}
-              </span>
-              {service.children && (
-                <span className="num">
-                  {service.children.running}/{service.children.total} containers
-                </span>
-              )}
-            </span>
+            <ProviderChip service={service} />
           </button>
         </div>
-      </td>
+      </TableCell>
 
-      <td className="whitespace-nowrap px-3 py-2.5">
+      <TableCell className="px-3 py-2.5">
         <StatusBadge state={service.state} />
-      </td>
+      </TableCell>
 
-      <td className="hidden max-w-[22rem] px-3 py-2.5 text-[12.5px] text-ink-2 lg:table-cell">
-        {service.busy ? (
-          <span className="flex items-center gap-1.5 text-signal">
-            <StatusIndicator state={service.state} size={9} />
-            {service.busy.label} running…
-          </span>
-        ) : (
-          <span className="block truncate" title={service.statusSummary ?? service.description}>
-            {service.statusSummary ?? service.description ?? '—'}
+      <TableCell className="hidden max-w-[22rem] px-3 py-2.5 text-[12.5px] text-ink-2 lg:table-cell">
+        <ActivityLine service={service} className="block" />
+        {!service.busy && !service.statusSummary && (
+          <span className="block truncate" title={service.description}>
+            {service.description ?? '—'}
           </span>
         )}
-      </td>
+      </TableCell>
 
-      <td className="hidden whitespace-nowrap px-3 py-2.5 text-[12.5px] text-muted xl:table-cell">{groupName}</td>
+      <TableCell className="hidden px-3 py-2.5 text-[12.5px] text-ink-3 xl:table-cell">{groupName}</TableCell>
 
-      <td className="hidden whitespace-nowrap px-3 py-2.5 text-[12.5px] text-muted md:table-cell">
-        {uptime ? (
-          <span className="num flex items-center gap-1" title={`Since ${service.since}`}>
-            <Clock3 className="size-3 text-faint" />
-            {uptime}
-          </span>
-        ) : (
-          <span className="text-faint">—</span>
-        )}
-      </td>
+      <TableCell className="hidden px-3 py-2.5 text-[12.5px] text-ink-3 md:table-cell">
+        <UptimeLabel service={service} />
+      </TableCell>
 
       {/* CPU and memory only: the row has to stay one line, and the drawer has
           the full set including disk and network. */}
-      <td className="hidden whitespace-nowrap px-3 py-2.5 text-[12.5px] md:table-cell">
+      <TableCell className="hidden px-3 py-2.5 text-[12.5px] md:table-cell">
         {load.length > 0 ? (
           <span className="flex items-center gap-2">
             {load.map((entry) => (
               <span
                 key={entry.metric}
                 title={`${entry.label} · ${service.resources?.attribution ?? ''}`}
-                className={clsx(
-                  'num',
-                  entry.alert?.severity === 'critical'
-                    ? 'text-st-failed'
-                    : entry.alert
-                      ? 'text-st-degraded'
-                      : 'text-muted',
-                )}
+                className={cn('num', entry.alert ? toneStyle(alertTone(entry.alert.severity)).text : 'text-ink-3')}
               >
                 <span className="text-faint">{entry.short} </span>
                 {formatResource(entry.value, entry.unit)}
@@ -211,68 +180,30 @@ function ServiceRow({
         ) : (
           <span className="text-faint">—</span>
         )}
-      </td>
+      </TableCell>
 
-      <td className="hidden px-3 py-2.5 lg:table-cell">
+      <TableCell className="hidden px-3 py-2.5 lg:table-cell">
         <div className="flex flex-wrap items-center gap-1.5">
           {service.ports.slice(0, 3).map((port) => (
-            <span
-              key={`${port.protocol}-${port.hostPort ?? port.port}`}
-              className="num inline-flex items-center gap-1 rounded-md border border-route/25 bg-route/10 px-1.5 py-0.5 text-[12px] text-route"
-              title={port.label ? `${port.label} (${port.protocol})` : port.protocol}
-            >
-              <Radio className="size-3" />
-              {port.hostPort ?? port.port}
-            </span>
+            <PortChip key={`${port.protocol}-${port.hostPort ?? port.port}`} port={port} />
           ))}
-          {primaryUrl && (
-            <a
-              href={primaryUrl.url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2/50 px-1.5 py-0.5 text-[12px] text-ink-2 transition-colors hover:border-signal/40 hover:text-signal"
-            >
-              {primaryUrl.label}
-              <ArrowUpRight className="size-3" />
-            </a>
-          )}
+          {primaryUrl && <EndpointLink url={primaryUrl} />}
           {service.ports.length === 0 && !primaryUrl && <span className="text-[12.5px] text-faint">—</span>}
         </div>
-      </td>
+      </TableCell>
 
-      <td className="whitespace-nowrap px-3 py-2.5">
+      <TableCell className="px-3 py-2.5">
         <div className="flex justify-end">
-          <ActionRow
-            service={service}
-            onRun={onRunAction}
-            inlineLimit={2}
-            compact
-            wrap={false}
-            prioritiseEnabled
-          />
+          <ActionRow service={service} onRun={onRunAction} inlineLimit={2} compact wrap={false} prioritiseEnabled />
         </div>
-      </td>
+      </TableCell>
 
-      <td className="hidden whitespace-nowrap px-3 py-2.5 text-right text-[11.5px] text-faint sm:table-cell">
+      <TableCell className="hidden px-3 py-2.5 text-right text-[11.5px] text-faint sm:table-cell">
         <span className="flex items-center justify-end gap-2">
-          {service.lastAction && (
-            <span
-              title={`${service.lastAction.label}: ${service.lastAction.message}`}
-              className={clsx(
-                'hidden items-center gap-1 xl:flex',
-                service.lastAction.ok ? 'text-faint' : 'text-st-failed/80',
-              )}
-            >
-              <ScrollText className="size-3" />
-              {service.lastAction.label}
-            </span>
-          )}
-          <span title={service.lastCheckedAt ? `Last status check: ${service.lastCheckedAt}` : 'Never checked'}>
-            {service.checking ? 'checking…' : formatAgo(service.lastCheckedAt)}
-          </span>
+          <LastCheckedInfo service={service} actionClassName="xl:flex" />
         </span>
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 

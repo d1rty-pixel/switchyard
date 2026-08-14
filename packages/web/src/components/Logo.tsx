@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 /**
  * Switchyard mark: one incoming path splitting at a junction node into two
@@ -7,7 +7,7 @@ import clsx from 'clsx';
  */
 export function Logo({ className, animated = true }: { className?: string; animated?: boolean }) {
   return (
-    <svg viewBox="0 0 40 40" className={clsx('shrink-0', className)} role="img" aria-label="Switchyard">
+    <svg viewBox="0 0 40 40" className={cn('shrink-0', className)} role="img" aria-label="Switchyard">
       <defs>
         <linearGradient id="sy-plate" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#131c26" />
@@ -79,7 +79,7 @@ export function Logo({ className, animated = true }: { className?: string; anima
 
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={clsx('font-semibold tracking-tight text-ink', className)}>
+    <span className={cn('font-semibold tracking-tight text-ink', className)}>
       Switch<span className="text-signal">yard</span>
     </span>
   );
