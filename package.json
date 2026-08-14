@@ -25,8 +25,6 @@
     "dev": "node scripts/dev.mjs",
     "build": "npm run build --workspace @switchyard/web && npm run build --workspace @switchyard/server && npm run build --workspace @switchyard/mcp",
     "start": "node packages/server/dist/index.js",
-    "stop": "fuser -k 7878/tcp || true",
-    "restart": "npm stop && npm start",
     "mcp": "node packages/mcp/dist/index.js",
     "mcp:http": "scripts/switchyard-mcp-manage.sh start",
     "mcp:install": "scripts/switchyard-mcp-install.sh",
