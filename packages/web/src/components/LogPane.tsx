@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useLogs } from '@/lib/hooks';
 import { formatClock } from '@/lib/format';
@@ -276,19 +277,23 @@ function IconToggle({
   children: React.ReactNode;
 }) {
   return (
-    <Button
-      variant="outline"
-      size="icon-sm"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      className={cn(
-        'rounded-lg border',
-        active ? 'border-primary/35 bg-primary/12 text-primary' : 'border-border bg-muted/60 text-muted-foreground hover:text-foreground',
-      )}
-    >
-      {children}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={onClick}
+          aria-label={label}
+          aria-pressed={active}
+          className={cn(
+            'rounded-lg border',
+            active ? 'border-primary/35 bg-primary/12 text-primary' : 'border-border bg-muted/60 text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

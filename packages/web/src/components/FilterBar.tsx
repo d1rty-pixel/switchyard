@@ -2,6 +2,7 @@ import { ArrowDownUp, FilterX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { iconFor } from '@/lib/icons';
 import { STATE_ORDER, stateStyle } from '@/lib/status';
@@ -90,19 +91,22 @@ export function FilterBar({
           const style = stateStyle(state);
           const selected = filters.states.includes(state);
           return (
-            <ToggleGroupItem
-              key={state}
-              value={state}
-              title={style.hint}
-              className={cn(
-                'h-auto gap-1.5 rounded-lg border px-2 py-1 text-[12.5px]',
-                selected ? style.chip : IDLE_CHIP,
-              )}
-            >
-              <StatusIndicator state={state} size={8} />
-              {style.label}
-              <span className="tabular-nums text-[11.5px] opacity-70">{count}</span>
-            </ToggleGroupItem>
+            <Tooltip key={state}>
+              <TooltipTrigger asChild>
+                <ToggleGroupItem
+                  value={state}
+                  className={cn(
+                    'h-auto gap-1.5 rounded-lg border px-2 py-1 text-[12.5px]',
+                    selected ? style.chip : IDLE_CHIP,
+                  )}
+                >
+                  <StatusIndicator state={state} size={8} />
+                  {style.label}
+                  <span className="tabular-nums text-[11.5px] opacity-70">{count}</span>
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>{style.hint}</TooltipContent>
+            </Tooltip>
           );
         })}
       </ToggleGroup>
@@ -170,14 +174,22 @@ export function FilterBar({
 }
 
 function Pill({ value, title, children }: { value: string; title?: string; children: React.ReactNode }) {
-  return (
+  const item = (
     <ToggleGroupItem
       value={value}
-      title={title}
       className="h-auto gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1 text-[13px] font-medium text-muted-foreground hover:text-foreground data-[state=on]:bg-secondary data-[state=on]:text-foreground data-[state=on]:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
     >
       {children}
     </ToggleGroupItem>
+  );
+
+  if (!title) return item;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{item}</TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
   );
 }
 

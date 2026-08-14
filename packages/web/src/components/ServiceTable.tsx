@@ -1,5 +1,6 @@
 import { AlertTriangle, Gauge } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { iconFor } from '@/lib/icons';
 import { alertTone, resourceEntries } from '@/lib/resources';
@@ -117,24 +118,30 @@ function ServiceRow({
               {warning && (
                 // The tooltip lives on a wrapper: a `title` attribute on an SVG
                 // element is not rendered as one.
-                <span
-                  className="shrink-0 text-warn"
-                  title={extraWarnings > 0 ? `${warning} (+${extraWarnings} more)` : warning}
-                >
-                  <AlertTriangle className="size-3.5" />
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="shrink-0 text-warn">
+                      <AlertTriangle className="size-3.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {extraWarnings > 0 ? `${warning} (+${extraWarnings} more)` : warning}
+                  </TooltipContent>
+                </Tooltip>
               )}
               {alert && (
-                <span
-                  className={cn('shrink-0', toneStyle(alertTone(alert.severity)).text)}
-                  title={
-                    `${alert.label} ${alert.severity}: ${formatResource(alert.value, alert.unit)} over ` +
-                    `${formatResource(alert.threshold, alert.unit)}` +
-                    (service.alerts.length > 1 ? ` (+${service.alerts.length - 1} more)` : '')
-                  }
-                >
-                  <Gauge className="size-3.5" />
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className={cn('shrink-0', toneStyle(alertTone(alert.severity)).text)}>
+                      <Gauge className="size-3.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {`${alert.label} ${alert.severity}: ${formatResource(alert.value, alert.unit)} over ` +
+                      `${formatResource(alert.threshold, alert.unit)}` +
+                      (service.alerts.length > 1 ? ` (+${service.alerts.length - 1} more)` : '')}
+                  </TooltipContent>
+                </Tooltip>
               )}
             </span>
             <ProviderChip service={service} />
@@ -149,9 +156,16 @@ function ServiceRow({
       <TableCell className="hidden max-w-[22rem] px-3 py-2.5 text-[12.5px] text-muted-foreground lg:table-cell">
         <ActivityLine service={service} className="block" />
         {!service.busy && !service.statusSummary && (
-          <span className="block truncate" title={service.description}>
-            {service.description ?? '—'}
-          </span>
+          service.description ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="block truncate">{service.description}</span>
+              </TooltipTrigger>
+              <TooltipContent>{service.description}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <span className="block truncate">—</span>
+          )
         )}
       </TableCell>
 
@@ -167,14 +181,17 @@ function ServiceRow({
         {load.length > 0 ? (
           <span className="flex items-center gap-2">
             {load.map((entry) => (
-              <span
-                key={entry.metric}
-                title={`${entry.label} · ${service.resources?.attribution ?? ''}`}
-                className={cn('tabular-nums', entry.alert ? toneStyle(alertTone(entry.alert.severity)).text : 'text-muted-foreground')}
-              >
-                <span className="text-muted-foreground">{entry.short} </span>
-                {formatResource(entry.value, entry.unit)}
-              </span>
+              <Tooltip key={entry.metric}>
+                <TooltipTrigger asChild>
+                  <span
+                    className={cn('tabular-nums', entry.alert ? toneStyle(alertTone(entry.alert.severity)).text : 'text-muted-foreground')}
+                  >
+                    <span className="text-muted-foreground">{entry.short} </span>
+                    {formatResource(entry.value, entry.unit)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{`${entry.label} · ${service.resources?.attribution ?? ''}`}</TooltipContent>
+              </Tooltip>
             ))}
           </span>
         ) : (

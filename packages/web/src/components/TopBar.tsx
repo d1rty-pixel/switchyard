@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Logo, Wordmark } from './Logo';
 import { StateDistribution } from './StatusIndicator';
@@ -78,9 +79,20 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
           <Logo className="size-9" />
           <div className="leading-tight">
             <Wordmark className="text-[16px]" />
-            <p className="text-[11.5px] text-muted-foreground" title={configPath}>
-              {version ? `v${version}` : 'local control panel'}
-            </p>
+            {configPath ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="text-[11.5px] text-muted-foreground">
+                    {version ? `v${version}` : 'local control panel'}
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent>{configPath}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <p className="text-[11.5px] text-muted-foreground">
+                {version ? `v${version}` : 'local control panel'}
+              </p>
+            )}
           </div>
         </div>
 
@@ -128,25 +140,29 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
 
           <ThemeMenu preference={theme.preference} resolved={theme.resolved} onSelect={theme.setPreference} />
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onToggleNotifications}
-            aria-pressed={notificationsEnabled}
-            title={
-              notificationsEnabled
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onToggleNotifications}
+                aria-pressed={notificationsEnabled}
+                className={cn(
+                  'rounded-xl border',
+                  notificationsEnabled
+                    ? 'border-good/35 bg-good/12 text-good'
+                    : 'border-border bg-card/60 text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {notificationsEnabled ? <Bell /> : <BellOff />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {notificationsEnabled
                 ? 'Desktop notifications on for every action and service change — click to turn off'
-                : 'Get a desktop notification when an action finishes or a service goes down'
-            }
-            className={cn(
-              'rounded-xl border',
-              notificationsEnabled
-                ? 'border-good/35 bg-good/12 text-good'
-                : 'border-border bg-card/60 text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {notificationsEnabled ? <Bell /> : <BellOff />}
-          </Button>
+                : 'Get a desktop notification when an action finishes or a service goes down'}
+            </TooltipContent>
+          </Tooltip>
 
           <ToggleGroup
             type="single"
@@ -164,15 +180,19 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
             </ViewToggle>
           </ToggleGroup>
 
-          <Button
-            variant="outline"
-            onClick={onReload}
-            title="Reload switchyard.yaml from disk"
-            className="rounded-xl border-border bg-card/60 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-primary"
-          >
-            {reloading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-            <span className="hidden sm:inline">Reload config</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                onClick={onReload}
+                className="rounded-xl border-border bg-card/60 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-primary"
+              >
+                {reloading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                <span className="hidden sm:inline">Reload config</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Reload switchyard.yaml from disk</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </header>
@@ -203,17 +223,21 @@ function ThemeMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={`Theme: ${activeLabel}`}
-          title={`Theme: ${activeLabel}`}
-          className="rounded-xl border-border bg-card/60 text-muted-foreground hover:text-foreground"
-        >
-          <TriggerIcon />
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={`Theme: ${activeLabel}`}
+              className="rounded-xl border-border bg-card/60 text-muted-foreground hover:text-foreground"
+            >
+              <TriggerIcon />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{`Theme: ${activeLabel}`}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" sideOffset={4} className="min-w-[9rem]">
         <DropdownMenuRadioGroup
           value={preference}
@@ -233,37 +257,45 @@ function ThemeMenu({
 
 function StreamIndicator({ stream }: { stream: StreamState }) {
   return (
-    <Badge
-      variant="outline"
-      title={
-        stream.connected
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="outline"
+          className={cn(
+            'h-auto gap-1.5 rounded-xl border px-2 py-1.5 text-[12px]',
+            stream.connected
+              ? 'border-good/30 bg-good/10 text-good'
+              : 'border-warn/30 bg-warn/10 text-warn',
+          )}
+        >
+          <RadioTower className={cn('size-3.5!', stream.connected && 'animate-pulse')} />
+          <span className="hidden sm:inline">{stream.connected ? 'live' : 'offline'}</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        {stream.connected
           ? `Live event stream connected · last event ${formatAgo(
               stream.lastEventAt ? new Date(stream.lastEventAt).toISOString() : null,
             )}`
-          : 'Event stream disconnected — falling back to polling'
-      }
-      className={cn(
-        'h-auto gap-1.5 rounded-xl border px-2 py-1.5 text-[12px]',
-        stream.connected
-          ? 'border-good/30 bg-good/10 text-good'
-          : 'border-warn/30 bg-warn/10 text-warn',
-      )}
-    >
-      <RadioTower className={cn('size-3.5!', stream.connected && 'animate-pulse')} />
-      <span className="hidden sm:inline">{stream.connected ? 'live' : 'offline'}</span>
-    </Badge>
+          : 'Event stream disconnected — falling back to polling'}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
 function ViewToggle({ value, label, children }: { value: ViewMode; label: string; children: React.ReactNode }) {
   return (
-    <ToggleGroupItem
-      value={value}
-      title={label}
-      aria-label={label}
-      className="size-auto rounded-lg border-0 bg-transparent p-1.5 text-muted-foreground hover:text-foreground data-[state=on]:bg-secondary data-[state=on]:text-foreground"
-    >
-      {children}
-    </ToggleGroupItem>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <ToggleGroupItem
+          value={value}
+          aria-label={label}
+          className="size-auto rounded-lg border-0 bg-transparent p-1.5 text-muted-foreground hover:text-foreground data-[state=on]:bg-secondary data-[state=on]:text-foreground"
+        >
+          {children}
+        </ToggleGroupItem>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

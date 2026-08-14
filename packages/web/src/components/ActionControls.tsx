@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { actionIcon } from '@/lib/icons';
 import type { ActionDescriptor, ServiceSummary } from '@/lib/types';
@@ -37,22 +38,26 @@ export function ActionButton({
 }: ActionButtonProps) {
   const Icon = actionIcon(action.icon);
   return (
-    <Button
-      variant="outline"
-      size={compact ? 'xs' : 'sm'}
-      onClick={onRun}
-      disabled={disabled || running}
-      title={disabled ? disabledReason ?? action.description : action.description}
-      className={cn(
-        'rounded-lg border',
-        compact ? 'text-[12px]' : 'text-[13px]',
-        KIND_CLASS[action.kind],
-        (disabled || running) && 'pointer-events-none opacity-40 shadow-none',
-      )}
-    >
-      {running ? <Loader2 className="animate-spin" /> : Icon ? <Icon /> : null}
-      {action.label}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size={compact ? 'xs' : 'sm'}
+          onClick={onRun}
+          disabled={disabled || running}
+          className={cn(
+            'rounded-lg border',
+            compact ? 'text-[12px]' : 'text-[13px]',
+            KIND_CLASS[action.kind],
+            (disabled || running) && 'pointer-events-none opacity-40 shadow-none',
+          )}
+        >
+          {running ? <Loader2 className="animate-spin" /> : Icon ? <Icon /> : null}
+          {action.label}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{disabled ? disabledReason ?? action.description : action.description}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -193,22 +198,25 @@ function OverflowMenu({
           const reason = reasonFor(action);
           const locked = disabled || reason !== undefined;
           return (
-            <DropdownMenuItem
-              key={action.id}
-              disabled={locked}
-              title={reason ?? action.description}
-              onSelect={() => onRun(action)}
-              className="gap-2.5 py-2"
-            >
-              {busyActionId === action.id ? (
-                <Loader2 className="animate-spin text-primary" />
-              ) : Icon ? (
-                <Icon className="text-muted-foreground" />
-              ) : (
-                <span className="size-3.5" />
-              )}
-              <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{action.label}</span>
-            </DropdownMenuItem>
+            <Tooltip key={action.id}>
+              <TooltipTrigger asChild>
+                <DropdownMenuItem
+                  disabled={locked}
+                  onSelect={() => onRun(action)}
+                  className="gap-2.5 py-2"
+                >
+                  {busyActionId === action.id ? (
+                    <Loader2 className="animate-spin text-primary" />
+                  ) : Icon ? (
+                    <Icon className="text-muted-foreground" />
+                  ) : (
+                    <span className="size-3.5" />
+                  )}
+                  <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{action.label}</span>
+                </DropdownMenuItem>
+              </TooltipTrigger>
+              <TooltipContent side="left">{reason ?? action.description}</TooltipContent>
+            </Tooltip>
           );
         })}
       </DropdownMenuContent>

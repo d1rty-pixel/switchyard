@@ -1,6 +1,7 @@
 import { AlertTriangle, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { iconFor } from '@/lib/icons';
 import { alertTone, resourceEntries } from '@/lib/resources';
@@ -105,21 +106,25 @@ export function ServiceCard({ service, onOpen, onRunAction }: ServiceCardProps) 
           describe load rather than a broken service, and the two would be
           indistinguishable in one list. */}
       {alert && (
-        <Callout
-          as="button"
-          tone={alertTone(alert.severity)}
-          icon={Gauge}
-          onClick={onOpen}
-          title={`Since ${alert.activatedAt}`}
-          className="mx-4 mb-3 ml-5 text-[12.5px]"
-        >
-          {alert.label} {alert.severity} · {formatResource(alert.value, alert.unit)} over{' '}
-          {formatResource(alert.threshold, alert.unit)}
-          {alert.stale && ' (no fresh samples)'}
-          {service.alerts.length > 1 && (
-            <span className="ml-1 underline decoration-dotted">+{service.alerts.length - 1} more</span>
-          )}
-        </Callout>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Callout
+              as="button"
+              tone={alertTone(alert.severity)}
+              icon={Gauge}
+              onClick={onOpen}
+              className="mx-4 mb-3 ml-5 text-[12.5px]"
+            >
+              {alert.label} {alert.severity} · {formatResource(alert.value, alert.unit)} over{' '}
+              {formatResource(alert.threshold, alert.unit)}
+              {alert.stale && ' (no fresh samples)'}
+              {service.alerts.length > 1 && (
+                <span className="ml-1 underline decoration-dotted">+{service.alerts.length - 1} more</span>
+              )}
+            </Callout>
+          </TooltipTrigger>
+          <TooltipContent>{`Since ${alert.activatedAt}`}</TooltipContent>
+        </Tooltip>
       )}
 
       {warning && (

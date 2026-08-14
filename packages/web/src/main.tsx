@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { ToastViewport } from './components/Toasts';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -40,8 +41,10 @@ if (!container) throw new Error('missing #root element');
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
-      <ToastViewport />
+      <TooltipProvider>
+        <App />
+        <ToastViewport />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

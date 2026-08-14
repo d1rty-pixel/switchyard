@@ -1,5 +1,6 @@
 import { Activity, ArrowUpRight, Clock3, Gauge, Radio, ScrollText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { formatAgo, formatMetric, formatResource, formatUptime } from '@/lib/format';
 import { alertTone } from '@/lib/resources';
@@ -36,14 +37,18 @@ export function ProviderChip({ service, className }: { service: ServiceSummary; 
 
 export function PortChip({ port, className }: { port: PortInfo; className?: string }) {
   return (
-    <Badge
-      variant="outline"
-      title={port.label ? `${port.label} (${port.protocol})` : port.protocol}
-      className={cn(CHIP, 'tabular-nums border-border bg-muted/60 text-foreground', className)}
-    >
-      <Radio />
-      {port.hostPort ?? port.port}
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="outline"
+          className={cn(CHIP, 'tabular-nums border-border bg-muted/60 text-foreground', className)}
+        >
+          <Radio />
+          {port.hostPort ?? port.port}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{port.label ? `${port.label} (${port.protocol})` : port.protocol}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -83,34 +88,41 @@ export function ResourceChip({
   className?: string;
 }) {
   const tone = toneStyle(alertTone(entry.alert?.severity));
+  const hint = entry.alert
+    ? `${entry.label}: ${formatResource(entry.value, entry.unit)} — ${entry.alert.severity} threshold ${formatResource(entry.alert.threshold, entry.unit)}`
+    : `${entry.label} · ${attribution ?? ''}`;
   return (
-    <Badge
-      variant="outline"
-      title={
-        entry.alert
-          ? `${entry.label}: ${formatResource(entry.value, entry.unit)} — ${entry.alert.severity} threshold ${formatResource(entry.alert.threshold, entry.unit)}`
-          : `${entry.label} · ${attribution ?? ''}`
-      }
-      className={cn(CHIP, entry.alert ? tone.chip : 'border-border bg-muted/50 text-muted-foreground', className)}
-    >
-      {entry.metric === 'cpu' ? <Gauge className="opacity-70" /> : <Activity className="opacity-70" />}
-      <span className="text-muted-foreground">{entry.short}</span>
-      <span className="tabular-nums font-medium">{formatResource(entry.value, entry.unit)}</span>
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="outline"
+          className={cn(CHIP, entry.alert ? tone.chip : 'border-border bg-muted/50 text-muted-foreground', className)}
+        >
+          {entry.metric === 'cpu' ? <Gauge className="opacity-70" /> : <Activity className="opacity-70" />}
+          <span className="text-muted-foreground">{entry.short}</span>
+          <span className="tabular-nums font-medium">{formatResource(entry.value, entry.unit)}</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{hint}</TooltipContent>
+    </Tooltip>
   );
 }
 
 /** A provider-declared metric, rendered according to its declared kind. */
 export function MetricChip({ metric, className }: { metric: Metric; className?: string }) {
   return (
-    <Badge
-      variant="outline"
-      title={metric.label}
-      className={cn(CHIP, 'border-border bg-muted/50', toneStyle(metric.tone).text, className)}
-    >
-      <span className="text-muted-foreground">{metric.label}</span>
-      <span className="tabular-nums font-medium">{formatMetric(metric)}</span>
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="outline"
+          className={cn(CHIP, 'border-border bg-muted/50', toneStyle(metric.tone).text, className)}
+        >
+          <span className="text-muted-foreground">{metric.label}</span>
+          <span className="tabular-nums font-medium">{formatMetric(metric)}</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{metric.label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -132,10 +144,15 @@ export function UptimeLabel({ service }: { service: ServiceSummary }) {
   const uptime = formatUptime(service.since);
   if (!uptime) return <span className="text-muted-foreground">—</span>;
   return (
-    <span className="tabular-nums flex items-center gap-1" title={`Since ${service.since}`}>
-      <Clock3 className="size-3 text-muted-foreground" />
-      {uptime}
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="tabular-nums flex items-center gap-1">
+          <Clock3 className="size-3 text-muted-foreground" />
+          {uptime}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{`Since ${service.since}`}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -151,9 +168,12 @@ export function ActivityLine({ service, className }: { service: ServiceSummary; 
   }
   if (!service.statusSummary) return null;
   return (
-    <span className={cn('min-w-0 truncate', className)} title={service.statusSummary}>
-      {service.statusSummary}
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn('min-w-0 truncate', className)}>{service.statusSummary}</span>
+      </TooltipTrigger>
+      <TooltipContent>{service.statusSummary}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -169,21 +189,30 @@ export function LastCheckedInfo({
   return (
     <>
       {service.lastAction && (
-        <span
-          title={`${service.lastAction.label}: ${service.lastAction.message}`}
-          className={cn(
-            'hidden items-center gap-1',
-            actionClassName ?? 'sm:flex',
-            service.lastAction.ok ? 'text-muted-foreground' : 'text-bad/80',
-          )}
-        >
-          <ScrollText className="size-3" />
-          {service.lastAction.label}
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className={cn(
+                'hidden items-center gap-1',
+                actionClassName ?? 'sm:flex',
+                service.lastAction.ok ? 'text-muted-foreground' : 'text-bad/80',
+              )}
+            >
+              <ScrollText className="size-3" />
+              {service.lastAction.label}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{`${service.lastAction.label}: ${service.lastAction.message}`}</TooltipContent>
+        </Tooltip>
       )}
-      <span title={service.lastCheckedAt ? `Last status check: ${service.lastCheckedAt}` : 'Never checked'}>
-        {service.checking ? 'checking…' : formatAgo(service.lastCheckedAt)}
-      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span>{service.checking ? 'checking…' : formatAgo(service.lastCheckedAt)}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {service.lastCheckedAt ? `Last status check: ${service.lastCheckedAt}` : 'Never checked'}
+        </TooltipContent>
+      </Tooltip>
     </>
   );
 }

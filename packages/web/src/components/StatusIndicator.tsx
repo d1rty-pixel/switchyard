@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { stateStyle } from '@/lib/status';
 import type { ServiceState } from '@/lib/types';
@@ -96,14 +97,18 @@ export function StatusBadge({
 }) {
   const style = stateStyle(state);
   return (
-    <Badge
-      variant="outline"
-      title={style.hint}
-      className={cn('h-auto gap-1.5 border px-2 py-[3px] text-[12px] tracking-wide', style.chip, className)}
-    >
-      <StatusIndicator state={state} size={9} />
-      {label ?? style.label}
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="outline"
+          className={cn('h-auto gap-1.5 border px-2 py-[3px] text-[12px] tracking-wide', style.chip, className)}
+        >
+          <StatusIndicator state={state} size={9} />
+          {label ?? style.label}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{style.hint}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -125,12 +130,15 @@ export function StateDistribution({
         if (count === 0) return null;
         const style = stateStyle(state);
         return (
-          <span
-            key={state}
-            title={`${count} ${style.label.toLowerCase()}`}
-            style={{ width: `${(count / Math.max(total, 1)) * 100}%`, background: style.color }}
-            className="h-full transition-[width] duration-500"
-          />
+          <Tooltip key={state}>
+            <TooltipTrigger asChild>
+              <span
+                style={{ width: `${(count / Math.max(total, 1)) * 100}%`, background: style.color }}
+                className="h-full transition-[width] duration-500"
+              />
+            </TooltipTrigger>
+            <TooltipContent>{`${count} ${style.label.toLowerCase()}`}</TooltipContent>
+          </Tooltip>
         );
       })}
     </div>
