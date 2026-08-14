@@ -48,6 +48,20 @@ detect_docker_bridge_ip() {
   ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1
 }
 
+# The server logs at debug level by default and never rotates its own stdout,
+# so a long-running dev instance can grow this file without bound. One backup
+# generation is enough here — this is a dev convenience, not a production log
+# pipeline.
+rotate_log_if_large() {
+  local max_bytes="${SWITCHYARD_LOG_MAX_BYTES:-20971520}" # 20 MiB
+  [[ -f "${log_file}" ]] || return 0
+  local size
+  size="$(stat -c%s "${log_file}" 2>/dev/null || echo 0)"
+  (( size > max_bytes )) || return 0
+  mv -f "${log_file}" "${log_file}.1"
+  info "rotated oversized log (${size} bytes) -> $(basename "${log_file}").1"
+}
+
 read_pid() {
   [[ -f "${pid_file}" ]] || return 1
   local pid
@@ -113,6 +127,7 @@ do_start() {
     info "already running (pid ${c_bold}$(read_pid)${c_reset})"
     return 0
   fi
+  rotate_log_if_large
   rm -f "${pid_file}"
   cd "${root}"
   local -a bind_args=()

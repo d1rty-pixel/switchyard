@@ -51,6 +51,18 @@ read_pid() {
   printf '%s' "${pid}"
 }
 
+# Same one-generation rotation as switchyard-manage.sh — this log never
+# rotates on its own and can otherwise grow without bound.
+rotate_log_if_large() {
+  local max_bytes="${SWITCHYARD_LOG_MAX_BYTES:-20971520}" # 20 MiB
+  [[ -f "${log_file}" ]] || return 0
+  local size
+  size="$(stat -c%s "${log_file}" 2>/dev/null || echo 0)"
+  (( size > max_bytes )) || return 0
+  mv -f "${log_file}" "${log_file}.1"
+  info "rotated oversized log (${size} bytes) -> $(basename "${log_file}").1"
+}
+
 is_running() {
   local pid
   pid="$(read_pid)" || return 1
@@ -74,6 +86,7 @@ do_start() {
     err "not built: ${entry} — run npm run build"
     return 1
   fi
+  rotate_log_if_large
   rm -f "${pid_file}"
   cd "${root}"
   setsid node "${entry}" --http --host "${host}" --port "${port}" \

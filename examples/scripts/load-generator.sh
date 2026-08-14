@@ -44,12 +44,25 @@ is_running() {
   kill -0 "${pid}" 2>/dev/null
 }
 
+# Never rotates on its own otherwise — one backup generation is plenty for an
+# example load generator.
+rotate_log_if_large() {
+  local max_bytes="${SWITCHYARD_LOG_MAX_BYTES:-20971520}" # 20 MiB
+  [[ -f "${log_file}" ]] || return 0
+  local size
+  size="$(stat -c%s "${log_file}" 2>/dev/null || echo 0)"
+  (( size > max_bytes )) || return 0
+  mv -f "${log_file}" "${log_file}.1"
+  echo "rotated oversized log (${size} bytes) -> $(basename "${log_file}").1"
+}
+
 do_start() {
   local cpu="$1" memory="$2"
   if is_running; then
     echo "already running (pid $(read_pid))"
     return 0
   fi
+  rotate_log_if_large
   rm -f "${pid_file}"
   LOAD_PID_FILE="${pid_file}" \
   LOAD_SCRATCH_FILE="${scratch_file}" \
