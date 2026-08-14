@@ -73,7 +73,13 @@ scripts/switchyard-manage.sh start
 scripts/switchyard-manage.sh status
 scripts/switchyard-manage.sh logs -n 100
 scripts/switchyard-manage.sh stop
+scripts/switchyard-manage.sh rebuild  # npm run build, then restart on the fresh dist/
 ```
+
+This script owns the server's lifecycle; don't also start it via `npm start` or a
+stray `npm run dev` — a second instance fights the managed one for the port and
+the pid file. Rebuild after pulling changes so the managed instance runs the new
+code, not last build's `dist/`.
 
 Validate configuration without starting the server:
 

@@ -3,7 +3,7 @@
 # Lets Switchyard manage its own server process — same pattern as
 # sample-worker.sh: detach via setsid, track liveness with a pid file.
 #
-#   switchyard-manage.sh start | stop | restart | status | logs [-n N]
+#   switchyard-manage.sh start | stop | restart | rebuild | status | logs [-n N]
 #
 # `start` and `status` print the dashboard URL, read from the app's own
 # "switchyard ready" log line (falls back to a best-effort guess from
@@ -172,6 +172,16 @@ do_stop() {
   ok "stopped (was pid ${c_bold}${pid}${c_reset})"
 }
 
+do_rebuild() {
+  do_stop
+  # Stop first so the rebuilt dist/ isn't loaded by a process already running
+  # against the old one, and so `start` picks up the fresh build, not the stale one.
+  cd "${root}"
+  info "building…"
+  npm run build
+  do_start
+}
+
 do_status() {
   if is_running; then
     local pid uptime
@@ -200,13 +210,14 @@ case "${1:-}" in
     do_stop
     do_start
     ;;
+  rebuild) do_rebuild ;;
   status) do_status ;;
   logs)
     shift
     do_logs "$@"
     ;;
   *)
-    err "usage: $(basename "$0") {start|stop|restart|status|logs [-n N]}"
+    err "usage: $(basename "$0") {start|stop|restart|rebuild|status|logs [-n N]}"
     exit 2
     ;;
 esac
