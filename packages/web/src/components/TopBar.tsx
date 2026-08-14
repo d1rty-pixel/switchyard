@@ -1,7 +1,27 @@
-import { Bell, BellOff, LayoutGrid, Loader2, Moon, RadioTower, RefreshCw, Search, Sun, Table2, X } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  LayoutGrid,
+  Loader2,
+  Monitor,
+  Moon,
+  RadioTower,
+  RefreshCw,
+  Search,
+  Sun,
+  Table2,
+  X,
+} from 'lucide-react';
 import { forwardRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
@@ -9,6 +29,7 @@ import { Logo, Wordmark } from './Logo';
 import { StateDistribution } from './StatusIndicator';
 import { formatAgo } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
+import type { ThemePreference } from '@/lib/theme';
 import type { StreamState } from '@/lib/hooks';
 import type { ViewMode } from '@/lib/types';
 
@@ -48,7 +69,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
 ) {
   const running = counts.get('running') ?? 0;
   const unhealthy = (counts.get('failed') ?? 0) + (counts.get('degraded') ?? 0);
-  const [theme, toggleTheme] = useTheme();
+  const theme = useTheme();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-xl">
@@ -105,16 +126,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
 
           <StreamIndicator stream={stream} />
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            className="rounded-xl border-border bg-card/60 text-muted-foreground hover:text-foreground"
-          >
-            {theme === 'dark' ? <Sun /> : <Moon />}
-          </Button>
+          <ThemeMenu preference={theme.preference} resolved={theme.resolved} onSelect={theme.setPreference} />
 
           <Button
             variant="outline"
@@ -166,6 +178,58 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
     </header>
   );
 });
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+];
+
+/**
+ * The trigger shows what is on screen (so it reads as a status), while the
+ * menu shows what was chosen — those differ under `system`.
+ */
+function ThemeMenu({
+  preference,
+  resolved,
+  onSelect,
+}: {
+  preference: ThemePreference;
+  resolved: 'light' | 'dark';
+  onSelect: (preference: ThemePreference) => void;
+}) {
+  const activeLabel = THEME_OPTIONS.find((option) => option.value === preference)?.label ?? 'System';
+  const TriggerIcon = preference === 'system' ? Monitor : resolved === 'dark' ? Moon : Sun;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label={`Theme: ${activeLabel}`}
+          title={`Theme: ${activeLabel}`}
+          className="rounded-xl border-border bg-card/60 text-muted-foreground hover:text-foreground"
+        >
+          <TriggerIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={4} className="min-w-[9rem]">
+        <DropdownMenuRadioGroup
+          value={preference}
+          onValueChange={(value) => onSelect(value as ThemePreference)}
+        >
+          {THEME_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value} className="gap-2.5">
+              <option.icon className="text-muted-foreground" />
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function StreamIndicator({ stream }: { stream: StreamState }) {
   return (

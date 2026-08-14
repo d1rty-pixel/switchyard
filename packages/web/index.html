@@ -7,10 +7,13 @@
     <title>Switchyard</title>
     <script>
       // Applied before paint, and before React mounts, so there is no
-      // flash of the wrong theme while the bundle loads.
+      // flash of the wrong theme while the bundle loads. Keep the stored-value
+      // reading identical to `lib/theme.ts`: anything that is not an explicit
+      // "light"/"dark" means follow the OS, which is the default.
       (function () {
         var stored = localStorage.getItem('switchyard-theme');
-        var dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        var dark =
+          stored === 'dark' || (stored !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.classList.toggle('dark', dark);
       })();
     </script>
