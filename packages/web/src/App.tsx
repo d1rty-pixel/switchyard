@@ -392,18 +392,16 @@ export default function App() {
       />
 
       {all.length > 0 && (
-        <div className="border-b border-border/50 bg-muted/40">
-          <FilterBar
-            filters={filters}
-            onChange={setFilters}
-            groups={meta.data?.groups ?? []}
-            groupCounts={groupCounts}
-            stateCounts={stateCounts}
-            types={types}
-            total={all.length}
-            visible={visible.length}
-          />
-        </div>
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          groups={meta.data?.groups ?? []}
+          groupCounts={groupCounts}
+          stateCounts={stateCounts}
+          types={types}
+          total={all.length}
+          visible={visible.length}
+        />
       )}
 
       <main className="mx-auto max-w-[110rem] px-4 pt-5 sm:px-6">

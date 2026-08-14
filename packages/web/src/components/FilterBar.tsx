@@ -57,7 +57,7 @@ export function FilterBar({
         type="single"
         value={filters.group ?? 'all'}
         onValueChange={(value) => onChange({ ...filters, group: !value || value === 'all' ? null : value })}
-        className="flex-wrap gap-1 rounded-xl border border-border bg-card/50 p-1"
+        className="flex-wrap gap-1"
       >
         <Pill value="all">
           All

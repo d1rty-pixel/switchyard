@@ -72,7 +72,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
   const theme = useTheme();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[110rem] flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2.5">
           <Logo className="size-9" />
