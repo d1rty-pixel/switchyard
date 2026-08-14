@@ -1,4 +1,4 @@
-import { Bell, BellOff, LayoutGrid, Loader2, RadioTower, RefreshCw, Search, Table2, X } from 'lucide-react';
+import { Bell, BellOff, LayoutGrid, Loader2, Moon, RadioTower, RefreshCw, Search, Sun, Table2, X } from 'lucide-react';
 import { forwardRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Logo, Wordmark } from './Logo';
 import { StateDistribution } from './StatusIndicator';
 import { formatAgo } from '@/lib/format';
+import { useTheme } from '@/lib/theme';
 import type { StreamState } from '@/lib/hooks';
 import type { ViewMode } from '@/lib/types';
 
@@ -47,6 +48,7 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
 ) {
   const running = counts.get('running') ?? 0;
   const unhealthy = (counts.get('failed') ?? 0) + (counts.get('degraded') ?? 0);
+  const [theme, toggleTheme] = useTheme();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-xl">
@@ -102,6 +104,17 @@ export const TopBar = forwardRef<HTMLInputElement, TopBarProps>(function TopBar(
           </div>
 
           <StreamIndicator stream={stream} />
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            className="rounded-xl border-border bg-card/60 text-muted-foreground hover:text-foreground"
+          >
+            {theme === 'dark' ? <Sun /> : <Moon />}
+          </Button>
 
           <Button
             variant="outline"
