@@ -82,6 +82,12 @@ interface SourcedDefinition {
   source: string;
 }
 
+/** A validation issue plus the file it came from, so the top-level error can name it. */
+interface SourcedIssue {
+  source: string;
+  message: string;
+}
+
 export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
   const path = resolveConfigPath(explicitPath);
   const configDir = dirname(path);
@@ -92,7 +98,7 @@ export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
   }
 
   const warnings: string[] = [];
-  const issues: string[] = [];
+  const issues: SourcedIssue[] = [];
   const monitoring = resolveGlobalMonitoring(base.data.monitoring);
 
   // Main file first, then each services directory in declaration order.
@@ -115,7 +121,10 @@ export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
 
     const previous = seen.get(definition.id);
     if (previous) {
-      issues.push(`${where}: duplicate service id, already defined in ${relativeTo(configDir, previous)}`);
+      issues.push({
+        source,
+        message: `${where}: duplicate service id, already defined in ${relativeTo(configDir, previous)}`,
+      });
       continue;
     }
     seen.set(definition.id, source);
@@ -133,14 +142,17 @@ export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
 
     const provider = getProvider(definition.type);
     if (!provider) {
-      issues.push(`${where}: unknown provider type "${definition.type}" (known: ${providerTypes().join(', ')})`);
+      issues.push({
+        source,
+        message: `${where}: unknown provider type "${definition.type}" (known: ${providerTypes().join(', ')})`,
+      });
       continue;
     }
 
     const providerParsed = provider.configSchema.safeParse(definition.provider ?? {});
     if (!providerParsed.success) {
       for (const line of formatIssues(providerParsed.error)) {
-        issues.push(`${where}: provider.${line}`);
+        issues.push({ source, message: `${where}: provider.${line}` });
       }
       continue;
     }
@@ -170,7 +182,11 @@ export async function loadConfig(explicitPath?: string): Promise<LoadedConfig> {
   }
 
   if (issues.length > 0) {
-    throw new ConfigError(`invalid configuration in ${relativeTo(configDir, path)}`, issues);
+    const badFiles = [...new Set(issues.map((issue) => relativeTo(configDir, issue.source)))];
+    throw new ConfigError(
+      `invalid configuration in ${badFiles.join(', ')}`,
+      issues.map((issue) => issue.message),
+    );
   }
 
   const groups = withDefaultGroups(base.data.groups, services);
@@ -259,12 +275,12 @@ function isDirectory(path: string): boolean {
  * `services:` list. Subdirectories are ignored, which makes them a convenient
  * place to park definitions you are not using.
  */
-async function readServiceDir(dir: string, issues: string[]): Promise<SourcedDefinition[]> {
+async function readServiceDir(dir: string, issues: SourcedIssue[]): Promise<SourcedDefinition[]> {
   let entries: string[];
   try {
     entries = await readdir(dir);
   } catch (error) {
-    issues.push(`cannot read services directory ${dir}: ${(error as Error).message}`);
+    issues.push({ source: dir, message: `cannot read services directory ${dir}: ${(error as Error).message}` });
     return [];
   }
 
@@ -286,14 +302,14 @@ async function readServiceDir(dir: string, issues: string[]): Promise<SourcedDef
     try {
       document = await readYaml(file);
     } catch (error) {
-      issues.push((error as ConfigError).format?.() ?? (error as Error).message);
+      issues.push({ source: file, message: (error as ConfigError).format?.() ?? (error as Error).message });
       continue;
     }
 
     const parsed = serviceFileSchema.safeParse(document);
     if (!parsed.success) {
       for (const line of formatIssues(parsed.error)) {
-        issues.push(`${basename(file)}: ${line}`);
+        issues.push({ source: file, message: `${basename(file)}: ${line}` });
       }
       continue;
     }
