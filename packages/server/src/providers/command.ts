@@ -206,8 +206,13 @@ export const commandProvider: Provider<CommandConfig> = {
           ? 'No live process for pid file'
           : undefined;
 
+    // For `interpret: exit`, a nonzero exit resolving to the probe's own
+    // `failureState` (e.g. curl failing to connect => stopped) is the expected,
+    // correctly-classified reading, not a fault — surfacing its stderr as a
+    // warning there just reads as noise on every stopped service.
+    const isExpectedFailureState = probe.interpret !== 'stdout' && state === probe.failureState;
     const stderrLine = firstMeaningfulLine(result.stderr);
-    if (stderrLine && !result.ok) warnings.push(stderrLine);
+    if (stderrLine && !result.ok && !isExpectedFailureState) warnings.push(stderrLine);
 
     return {
       state,
